@@ -74,3 +74,6 @@ FEATURES.md
 
 # Specifications (local only)
 specs/
+
+# Agent prompts (local only)
+PROMPTS.md
