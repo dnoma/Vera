@@ -71,3 +71,6 @@ docs/*.pdf
 
 # Feature tracking (local only)
 FEATURES.md
+
+# Specifications (local only)
+specs/
