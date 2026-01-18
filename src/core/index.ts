@@ -10,3 +10,5 @@ export * from './Relation.js';
 export * from './Uncertainty.js';
 export * from './Decision.js';
 export * from './ArgumentationFramework.js';
+
+export { createAuditTrace, generateTraceId as generateAuditTraceId } from './AuditTrace.js';
