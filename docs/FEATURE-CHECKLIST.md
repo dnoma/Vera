@@ -14,11 +14,11 @@ Each checklist item corresponds to a single feature from `FEATURES.md` (no sub-t
 - [x] F2.3 Uncertainty & Decision
 - [x] F3.1 DF-QuAD semantics
 - [x] F3.2 Contestation module
+- [x] F4.1 Validators
+- [x] F4.2 Invariants
 
 ## Remaining
 
-- [ ] F4.1 Validators
-- [ ] F4.2 Invariants
 - [ ] F5.1 AuditTrace module
 - [ ] F6.1 Toy example
 - [ ] F6.2 Determinism tests
@@ -34,4 +34,3 @@ Each checklist item corresponds to a single feature from `FEATURES.md` (no sub-t
 - [ ] F7.7 README
 - [ ] F8.1 License
 - [ ] F8.2 Cleanup
-
