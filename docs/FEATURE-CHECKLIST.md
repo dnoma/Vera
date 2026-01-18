@@ -16,10 +16,10 @@ Each checklist item corresponds to a single feature from `FEATURES.md` (no sub-t
 - [x] F3.2 Contestation module
 - [x] F4.1 Validators
 - [x] F4.2 Invariants
+- [x] F5.1 AuditTrace module
 
 ## Remaining
 
-- [ ] F5.1 AuditTrace module
 - [ ] F6.1 Toy example
 - [ ] F6.2 Determinism tests
 - [ ] F6.3 Schema tests
