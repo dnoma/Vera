@@ -20,17 +20,17 @@ Each checklist item corresponds to a single feature from `FEATURES.md` (no sub-t
 
 ## Remaining
 
-- [ ] F6.1 Toy example
-- [ ] F6.2 Determinism tests
-- [ ] F6.3 Schema tests
-- [ ] F6.4 Contestability tests
-- [ ] F6.5 Invariant tests
-- [ ] F7.1 Overview doc
-- [ ] F7.2 Audit expectations
-- [ ] F7.3 Contestability doc
-- [ ] F7.4 Failure modes
-- [ ] F7.5 Threat model
-- [ ] F7.6 Invariants doc
-- [ ] F7.7 README
+- [x] F6.1 Toy example
+- [x] F6.2 Determinism tests
+- [x] F6.3 Schema tests
+- [x] F6.4 Contestability tests
+- [x] F6.5 Invariant tests
+- [x] F7.1 Overview doc
+- [x] F7.2 Audit expectations
+- [x] F7.3 Contestability doc
+- [x] F7.4 Failure modes
+- [x] F7.5 Threat model
+- [x] F7.6 Invariants doc
+- [x] F7.7 README
 - [ ] F8.1 License
 - [ ] F8.2 Cleanup
