@@ -9,6 +9,7 @@
     "build": "tsc",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --passWithNoTests",
     "example": "npm run build && node dist/examples/run.js",
+    "eval": "npm run build && node dist/eval/run.js",
     "lint": "eslint src --ext .ts",
     "clean": "rm -rf dist"
   },

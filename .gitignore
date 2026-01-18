@@ -59,6 +59,10 @@ NOTES.md
 audit-output/
 traces/
 *.audit.json
+eval-output/
+
+# Local datasets (not committed)
+CUAD_v1/
 
 # Temporary files
 tmp/

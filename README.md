@@ -24,6 +24,7 @@ mechanics rather than domain-specific content.
 - Contestability properties: `test/contestability.test.ts`
 - Schema validation: `schemas/audit-trace.schema.json` + `test/schema.test.ts`
 - End-to-end example: `npm run example` (source: `src/examples/toy-case.ts`)
+- Dataset eval harness (CUAD v1): `npm run eval` (see below)
 
 ## Quickstart
 
@@ -120,6 +121,39 @@ const { framework: recomputed, metadata } = recomputeFramework(framework, evalua
 ```bash
 npm test
 ```
+
+## Evaluation: CUAD v1 (Baseline vs QBAF)
+
+This repo includes an `eval/` harness that compares:
+- Baseline: linear, narrative-style reasoning constrained to **structured JSON** output
+- QBAF: graph-based reasoning constrained to **structured JSON** output, evaluated with DF-QuAD and assembled into an `AuditTrace`
+
+Setup:
+- Ensure `CUAD_v1/` is present at repo root (expects `CUAD_v1/CUAD_v1.json`).
+- Set `OPENAI_API_KEY`.
+
+Run a small smoke eval:
+
+```bash
+OPENAI_API_KEY=... npm run eval -- --dataset CUAD_v1 --methods both --limit 20
+```
+
+Inspect dataset metadata without calling the model:
+
+```bash
+npm run eval -- --dryRun --dataset CUAD_v1
+```
+
+Outputs:
+- `eval-output/latest.json` (full results)
+- `eval-output/README-snippet.md` (markdown summary suitable for README)
+- `eval-output/cache/` (request/response cache for replayable scoring; gitignored)
+
+Latest results:
+
+<!-- EVAL_RESULTS_START -->
+_(Run `npm run eval` to generate `eval-output/README-snippet.md` and paste it here.)_
+<!-- EVAL_RESULTS_END -->
 
 ## Documentation
 

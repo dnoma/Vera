@@ -9,6 +9,7 @@ let cachedValidator: ValidateFunction<AuditTrace> | null = null;
 
 function schemaPath(): string {
   const currentDir = dirname(fileURLToPath(import.meta.url));
+  // Works from both `src/validators` (ts-jest / ts-node) and `dist/validators` (compiled output).
   return resolve(currentDir, '../../schemas/audit-trace.schema.json');
 }
 
