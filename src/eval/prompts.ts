@@ -15,13 +15,15 @@ export function baselinePrompt(example: CuadExample): { system: string; user: st
     '{',
     '  "answer": "yes" | "no",',
     '  "confidence": number,',
-    '  "citations": [{"quote": string, "reason": string}]',
+    '  "evidenceSpans": [{"start": number, "end": number, "reason": string}]',
     '}',
     '',
     'Rules:',
     '- "confidence" must be in [0,1].',
-    '- Provide 1-3 citations, each a verbatim quote from the contract text (short excerpts).',
-    '- If you answer "no", citations may be empty.',
+    '- Provide 1-3 evidence spans if you answer "yes"; each span MUST be a direct substring of the contract text.',
+    '- For each span, provide 0-based character offsets: start (inclusive) and end (exclusive).',
+    '- If you answer "no", evidenceSpans must be an empty array.',
+    '- Do not use ellipses. Offsets must point into the provided contract text.',
   ].join('\n');
 
   const user = [
@@ -53,7 +55,7 @@ export function qbafPrompt(example: CuadExample, sourceId: string): { system: st
     '    ]',
     '  },',
     '  "evidence": [',
-    '    { "argumentId": "arg-0001", "quotes": [{"quote": string, "reason": string}] }',
+    '    { "argumentId": "arg-0001", "evidenceSpans": [{"start": number, "end": number, "reason": string}] }',
     '  ]',
     '}',
     '',
@@ -62,7 +64,9 @@ export function qbafPrompt(example: CuadExample, sourceId: string): { system: st
     '- baseScore must be in [0,1].',
     '- Keep it a tree: every non-root argument must have exactly ONE outgoing relation.',
     '- Use only the IDs "arg-0000" .. "arg-0006" and "rel-0001" .. "rel-0006".',
-    '- Provide 1-2 short verbatim evidence quotes per non-root argument.',
+    '- Provide 1-2 evidence spans per non-root argument.',
+    '- Evidence spans must be direct substrings of the contract text with 0-based [start,end) offsets.',
+    '- Do not use ellipses. Offsets must point into the provided contract text.',
     '- Root content should be the claim: "This contract contains a clause related to <Category>."',
   ].join('\n');
 

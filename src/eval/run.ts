@@ -16,7 +16,7 @@ import type {
 import { loadCuadExamples, listCuadCategories } from './cuad/loadCuad.js';
 import { computeCacheKey, readCache, writeCache } from './cache.js';
 import { openAIChatJson } from './openai/client.js';
-import { clamp01, quoteMatchesContract, safeJsonParse } from './metrics.js';
+import { bestSpanTokenF1, clamp01, spanIsValid, safeJsonParse } from './metrics.js';
 import { baselinePrompt, qbafPrompt } from './prompts.js';
 import { markdownReport, summarize } from './report.js';
 import type {
@@ -42,8 +42,8 @@ type Args = {
   dryRun: boolean;
 };
 
-const PROMPT_VERSION_BASELINE = 1;
-const PROMPT_VERSION_QBAF = 2;
+const PROMPT_VERSION_BASELINE = 2;
+const PROMPT_VERSION_QBAF = 3;
 
 function parseArgs(argv: readonly string[]): Args {
   const args: Record<string, string | boolean> = {};
@@ -105,14 +105,17 @@ function buildCuadSource(contractTitle: string, contractText: string) {
   );
 }
 
-function countCitationMatches(contractText: string, quotes: readonly string[]): { checked: number; matched: number } {
+function spanValidityStats(
+  contractText: string,
+  spans: readonly { start: number; end: number }[]
+): { checked: number; valid: number } {
   let checked = 0;
-  let matched = 0;
-  for (const q of quotes) {
+  let valid = 0;
+  for (const span of spans) {
     checked++;
-    if (quoteMatchesContract(contractText, q)) matched++;
+    if (spanIsValid(contractText, span)) valid++;
   }
-  return { checked, matched };
+  return { checked, valid };
 }
 
 function pickProConArguments(
@@ -163,6 +166,97 @@ function checkProperty1(
   return { holds, details };
 }
 
+function labelFromStrength(
+  strength: number,
+  threshold: number = 0.5
+): 'supported' | 'contested' {
+  return strength > threshold ? 'supported' : 'contested';
+}
+
+function minInterventionsToFlipDecision(
+  framework: ArgumentationFramework,
+  beforeLabel: 'supported' | 'contested'
+): number | undefined {
+  const candidates = framework.arguments
+    .filter(a => a.id !== framework.rootClaimId)
+    .map(a => a.id);
+
+  // Brute-force over small graphs: each argument is either unchanged, set to 0, or set to 1.
+  // With <= 6 non-root args, this is at most 3^6 = 729 evaluations.
+  const choices = [undefined, 0, 1] as const;
+
+  let best: number | undefined;
+
+  function search(index: number, modified: ArgumentationFramework, changedCount: number): void {
+    if (best !== undefined && changedCount >= best) return;
+
+    if (index >= candidates.length) {
+      const after = getFinalStrength(evaluateWithDFQuAD(modified));
+      const afterLabel = labelFromStrength(after);
+      if (afterLabel !== beforeLabel) {
+        best = changedCount;
+      }
+      return;
+    }
+
+    const id = candidates[index]!;
+    const original = framework.arguments.find(a => a.id === id);
+    const originalScore = original?.baseScore;
+
+    for (const choice of choices) {
+      if (choice === undefined) {
+        search(index + 1, modified, changedCount);
+        continue;
+      }
+
+      const next = applyBaseScoreChange(modified, id, choice);
+      const didChange = originalScore !== undefined && originalScore !== choice;
+      search(index + 1, next, changedCount + (didChange ? 1 : 0));
+    }
+  }
+
+  search(0, framework, 0);
+  return best;
+}
+
+function computeMaxSingleArgumentDelta(
+  framework: ArgumentationFramework,
+  beforeStrength: number
+): number | undefined {
+  const candidates = framework.arguments.filter(a => a.id !== framework.rootClaimId);
+  if (candidates.length === 0) return undefined;
+
+  let maxDelta = 0;
+  for (const arg of candidates) {
+    for (const newScore of [0, 1]) {
+      if (arg.baseScore === newScore) continue;
+      const modified = applyBaseScoreChange(framework, arg.id, newScore);
+      const afterStrength = getFinalStrength(evaluateWithDFQuAD(modified));
+      maxDelta = Math.max(maxDelta, Math.abs(afterStrength - beforeStrength));
+    }
+  }
+  return maxDelta;
+}
+
+function computeAuditabilitySignals(
+  baseFramework: ArgumentationFramework,
+  evaluated: EvaluatedFramework
+): NonNullable<ExampleResult['auditability']> {
+  const beforeStrength = getFinalStrength(evaluated);
+  const beforeLabel = labelFromStrength(beforeStrength);
+
+  const maxSingleArgumentDelta = computeMaxSingleArgumentDelta(baseFramework, beforeStrength);
+  const minInterventionsToFlip = minInterventionsToFlipDecision(baseFramework, beforeLabel);
+
+  return {
+    ...(maxSingleArgumentDelta !== undefined ? { maxSingleArgumentDelta } : {}),
+    ...(minInterventionsToFlip !== undefined ? { minInterventionsToFlip } : {}),
+    ...(minInterventionsToFlip === undefined
+      ? { note: 'No label flip found via base-score-only perturbations.' }
+      : {}),
+  };
+}
+
 async function runBaseline(
   example: CuadExample,
   openai: OpenAIChatParams,
@@ -208,17 +302,26 @@ async function runBaseline(
         method: 'baseline',
         predicted: null,
         error: `JSON parse failed: ${parsed.error}`,
-        citationsChecked: 0,
-        citationsMatched: 0,
+        evidenceSpansChecked: 0,
+        evidenceSpansValid: 0,
+        evidenceTokenOverlapF1: null,
       };
     }
 
     const output = parsed.value;
     const answer =
       output.answer === 'yes' || output.answer === 'no' ? output.answer : 'no';
-    const citations = Array.isArray(output.citations) ? output.citations : [];
-    const quotes = citations.map(c => c.quote).filter(Boolean);
-    const { checked, matched } = countCitationMatches(example.contractText, quotes);
+    const evidenceSpans = Array.isArray(output.evidenceSpans)
+      ? output.evidenceSpans
+          .map(s => ({ start: Number(s.start), end: Number(s.end) }))
+          .filter(s => Number.isFinite(s.start) && Number.isFinite(s.end))
+      : [];
+    const { checked, valid } = spanValidityStats(example.contractText, evidenceSpans);
+    const f1 = bestSpanTokenF1(
+      example.contractText,
+      evidenceSpans,
+      example.goldSpans
+    );
 
     return {
       qaId: example.qaId,
@@ -227,8 +330,9 @@ async function runBaseline(
       label: example.label,
       method: 'baseline',
       predicted: toBooleanAnswer(answer),
-      citationsChecked: checked,
-      citationsMatched: matched,
+      evidenceSpansChecked: checked,
+      evidenceSpansValid: valid,
+      evidenceTokenOverlapF1: f1,
     };
   } catch (e) {
     return {
@@ -239,8 +343,9 @@ async function runBaseline(
       method: 'baseline',
       predicted: null,
       error: e instanceof Error ? e.message : String(e),
-      citationsChecked: 0,
-      citationsMatched: 0,
+      evidenceSpansChecked: 0,
+      evidenceSpansValid: 0,
+      evidenceTokenOverlapF1: null,
     };
   }
 }
@@ -293,8 +398,9 @@ async function runQbaf(
         method: 'qbaf',
         predicted: null,
         error: `JSON parse failed: ${parsed.error}`,
-        citationsChecked: 0,
-        citationsMatched: 0,
+        evidenceSpansChecked: 0,
+        evidenceSpansValid: 0,
+        evidenceTokenOverlapF1: null,
       };
     }
 
@@ -302,12 +408,14 @@ async function runQbaf(
     const framework = output.framework;
     const evidence = output.evidence ?? [];
 
-    const evidenceQuotes = evidence
-      .flatMap(e => (e.quotes ?? []).map(q => q.quote))
-      .filter(Boolean);
-    const { checked, matched } = countCitationMatches(
+    const evidenceSpans = evidence
+      .flatMap(e => (e.evidenceSpans ?? []).map(s => ({ start: Number(s.start), end: Number(s.end) })))
+      .filter(s => Number.isFinite(s.start) && Number.isFinite(s.end));
+    const { checked, valid } = spanValidityStats(example.contractText, evidenceSpans);
+    const f1 = bestSpanTokenF1(
       example.contractText,
-      evidenceQuotes
+      evidenceSpans,
+      example.goldSpans
     );
 
     const evaluated = evaluateWithDFQuAD(framework);
@@ -372,12 +480,14 @@ async function runQbaf(
       label: example.label,
       method: 'qbaf',
       predicted: decision.label === 'supported',
-      citationsChecked: checked,
-      citationsMatched: matched,
+      evidenceSpansChecked: checked,
+      evidenceSpansValid: valid,
+      evidenceTokenOverlapF1: f1,
       schemaValidation: schemaResult,
       frameworkValidation: frameworkResult,
       evaluatedFramework: evaluated,
       contestability: checks,
+      auditability: computeAuditabilitySignals(baseFramework, evaluated),
     };
   } catch (e) {
     return {
@@ -388,8 +498,9 @@ async function runQbaf(
       method: 'qbaf',
       predicted: null,
       error: e instanceof Error ? e.message : String(e),
-      citationsChecked: 0,
-      citationsMatched: 0,
+      evidenceSpansChecked: 0,
+      evidenceSpansValid: 0,
+      evidenceTokenOverlapF1: null,
     };
   }
 }

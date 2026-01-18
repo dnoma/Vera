@@ -54,6 +54,13 @@ export function loadCuadExamples(datasetDirOrJson: string): readonly CuadExample
     for (const qa of paragraph.qas) {
       const category = extractCategory(qa.question);
       const label = !qa.is_impossible;
+      const goldSpans = (qa.answers ?? [])
+        .map(a => ({
+          start: a.answer_start,
+          end: a.answer_start + (a.text?.length ?? 0),
+        }))
+        .filter(s => Number.isFinite(s.start) && Number.isFinite(s.end) && s.end > s.start)
+        .filter(s => s.start >= 0 && s.end <= contractText.length);
 
       examples.push({
         qaId: qa.id,
@@ -62,6 +69,7 @@ export function loadCuadExamples(datasetDirOrJson: string): readonly CuadExample
         label,
         contractText,
         question: qa.question,
+        goldSpans,
       });
     }
   }
