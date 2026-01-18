@@ -43,17 +43,17 @@ export function qbafPrompt(example: CuadExample, sourceId: string): { system: st
     'You must output an object with:',
     '{',
     '  "framework": {',
-    `    "rootClaimId": "arg-root",`,
+    `    "rootClaimId": "arg-0000",`,
     '    "arguments": [',
-    '      { "id": "arg-root", "content": string, "baseScore": number, "sourceRefs": string[], "assumptions": [] },',
-    '      { "id": "arg-1", ... }',
+    '      { "id": "arg-0000", "content": string, "baseScore": number, "sourceRefs": string[], "assumptions": [] },',
+    '      { "id": "arg-0001", ... }',
     '    ],',
     '    "relations": [',
-    '      { "id": "rel-1", "from": "arg-1", "to": "arg-root", "type": "support" | "attack" }',
+    '      { "id": "rel-0001", "from": "arg-0001", "to": "arg-0000", "type": "support" | "attack" }',
     '    ]',
     '  },',
     '  "evidence": [',
-    '    { "argumentId": "arg-1", "quotes": [{"quote": string, "reason": string}] }',
+    '    { "argumentId": "arg-0001", "quotes": [{"quote": string, "reason": string}] }',
     '  ]',
     '}',
     '',
@@ -61,7 +61,7 @@ export function qbafPrompt(example: CuadExample, sourceId: string): { system: st
     `- Use only sourceRefs ["${sourceId}"] or [].`,
     '- baseScore must be in [0,1].',
     '- Keep it a tree: every non-root argument must have exactly ONE outgoing relation.',
-    '- Use only the IDs "arg-root", "arg-1".. "arg-6" and "rel-1".. "rel-6".',
+    '- Use only the IDs "arg-0000" .. "arg-0006" and "rel-0001" .. "rel-0006".',
     '- Provide 1-2 short verbatim evidence quotes per non-root argument.',
     '- Root content should be the claim: "This contract contains a clause related to <Category>."',
   ].join('\n');
@@ -76,4 +76,3 @@ export function qbafPrompt(example: CuadExample, sourceId: string): { system: st
 
   return { system, user };
 }
-

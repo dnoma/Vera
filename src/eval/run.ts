@@ -42,6 +42,9 @@ type Args = {
   dryRun: boolean;
 };
 
+const PROMPT_VERSION_BASELINE = 1;
+const PROMPT_VERSION_QBAF = 2;
+
 function parseArgs(argv: readonly string[]): Args {
   const args: Record<string, string | boolean> = {};
   for (let i = 2; i < argv.length; i++) {
@@ -170,6 +173,7 @@ async function runBaseline(
     const { system, user } = baselinePrompt(example);
     const request = {
       method: 'baseline',
+      promptVersion: PROMPT_VERSION_BASELINE,
       model: openai.model,
       temperature: openai.temperature,
       qaId: example.qaId,
@@ -254,6 +258,7 @@ async function runQbaf(
     const { system, user } = qbafPrompt(example, sourceId);
     const request = {
       method: 'qbaf',
+      promptVersion: PROMPT_VERSION_QBAF,
       model: openai.model,
       temperature: openai.temperature,
       qaId: example.qaId,
