@@ -32,5 +32,5 @@ Each checklist item corresponds to a single feature from `FEATURES.md` (no sub-t
 - [x] F7.5 Threat model
 - [x] F7.6 Invariants doc
 - [x] F7.7 README
-- [ ] F8.1 License
+- [x] F8.1 License
 - [ ] F8.2 Cleanup
