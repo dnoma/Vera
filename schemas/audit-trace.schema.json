@@ -1,0 +1,663 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vera.dev/schemas/audit-trace.schema.json",
+  "title": "Vera Audit Trace",
+  "description": "A contestable, audit-ready reasoning trace based on Quantitative Bipolar Argumentation Frameworks (QBAFs)",
+  "type": "object",
+  "required": [
+    "traceId",
+    "version",
+    "createdAt",
+    "claim",
+    "framework",
+    "sources",
+    "decision",
+    "uncertainty",
+    "limitations",
+    "integrity"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "traceId": {
+      "$ref": "#/$defs/TraceId"
+    },
+    "version": {
+      "$ref": "#/$defs/Version"
+    },
+    "createdAt": {
+      "$ref": "#/$defs/Timestamp"
+    },
+    "claim": {
+      "$ref": "#/$defs/Claim"
+    },
+    "framework": {
+      "$ref": "#/$defs/EvaluatedFramework"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Source"
+      },
+      "description": "All sources referenced in the reasoning"
+    },
+    "unusedSourceIds": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SourceId"
+      },
+      "description": "Source IDs that were available but not used"
+    },
+    "decision": {
+      "$ref": "#/$defs/Decision"
+    },
+    "uncertainty": {
+      "$ref": "#/$defs/Uncertainty"
+    },
+    "contestation": {
+      "$ref": "#/$defs/Contestation"
+    },
+    "recomputeMetadata": {
+      "$ref": "#/$defs/RecomputeMetadata"
+    },
+    "humanReview": {
+      "$ref": "#/$defs/HumanReview"
+    },
+    "limitations": {
+      "$ref": "#/$defs/Limitations"
+    },
+    "integrity": {
+      "$ref": "#/$defs/IntegrityFields"
+    }
+  },
+  "$defs": {
+    "TraceId": {
+      "type": "string",
+      "pattern": "^trace-[a-f0-9-]+$",
+      "description": "Unique identifier for the audit trace"
+    },
+    "ArgumentId": {
+      "type": "string",
+      "pattern": "^arg-[a-f0-9-]+$",
+      "description": "Unique identifier for an argument"
+    },
+    "SourceId": {
+      "type": "string",
+      "pattern": "^src-[a-f0-9-]+$",
+      "description": "Unique identifier for a source"
+    },
+    "RelationId": {
+      "type": "string",
+      "pattern": "^rel-[a-f0-9-]+$",
+      "description": "Unique identifier for a relation"
+    },
+    "ClaimId": {
+      "type": "string",
+      "pattern": "^claim-[a-f0-9-]+$",
+      "description": "Unique identifier for a claim"
+    },
+    "ContestationId": {
+      "type": "string",
+      "pattern": "^contest-[a-f0-9-]+$",
+      "description": "Unique identifier for a contestation"
+    },
+    "Timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp"
+    },
+    "ContentHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 hash as 64-character lowercase hex string"
+    },
+    "Version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version (e.g., 1.0.0)"
+    },
+    "Score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "A score in the range [0, 1]"
+    },
+    "Claim": {
+      "type": "object",
+      "required": ["id", "statement", "context", "createdAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ClaimId"
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The claim statement being evaluated"
+        },
+        "context": {
+          "type": "string",
+          "description": "Context or background for the claim"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "description": "The statement being evaluated by the argumentation framework"
+    },
+    "SourceType": {
+      "type": "string",
+      "enum": ["policy", "regulation", "guidance", "precedent", "reference", "document"],
+      "description": "Type of source material"
+    },
+    "SourceMetadata": {
+      "type": "object",
+      "required": ["type", "tags"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/SourceType"
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "effectiveDate": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "expirationDate": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "jurisdiction": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Metadata associated with a source"
+    },
+    "Source": {
+      "type": "object",
+      "required": ["id", "title", "description", "contentHash", "retrievedAt", "metadata"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/SourceId"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "contentHash": {
+          "$ref": "#/$defs/ContentHash"
+        },
+        "retrievedAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "metadata": {
+          "$ref": "#/$defs/SourceMetadata"
+        }
+      },
+      "description": "Source material referenced in reasoning"
+    },
+    "Assumption": {
+      "type": "object",
+      "required": ["id", "statement", "basis", "isContestable"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 1
+        },
+        "basis": {
+          "type": "string"
+        },
+        "isContestable": {
+          "type": "boolean"
+        }
+      },
+      "description": "An explicit assumption made during reasoning"
+    },
+    "Argument": {
+      "type": "object",
+      "required": ["id", "content", "baseScore", "sourceRefs", "assumptions"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ArgumentId"
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The argument content/statement"
+        },
+        "baseScore": {
+          "$ref": "#/$defs/Score",
+          "description": "Intrinsic strength \u03c4(\u03b1) before dialectical evaluation"
+        },
+        "computedStrength": {
+          "$ref": "#/$defs/Score",
+          "description": "Dialectical strength \u03c3(\u03b1) after semantic evaluation"
+        },
+        "sourceRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceId"
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Assumption"
+          }
+        }
+      },
+      "description": "An argument in the QBAF"
+    },
+    "RelationType": {
+      "type": "string",
+      "enum": ["attack", "support"],
+      "description": "Type of dialectical relation"
+    },
+    "Relation": {
+      "type": "object",
+      "required": ["id", "from", "to", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RelationId"
+        },
+        "from": {
+          "$ref": "#/$defs/ArgumentId",
+          "description": "Source argument of the relation"
+        },
+        "to": {
+          "$ref": "#/$defs/ArgumentId",
+          "description": "Target argument of the relation"
+        },
+        "type": {
+          "$ref": "#/$defs/RelationType"
+        }
+      },
+      "description": "A directed relation between two arguments"
+    },
+    "SemanticsType": {
+      "type": "string",
+      "enum": ["df-quad", "quadratic-energy"],
+      "description": "Gradual semantics algorithm used"
+    },
+    "ArgumentationFramework": {
+      "type": "object",
+      "required": ["rootClaimId", "arguments", "relations"],
+      "additionalProperties": false,
+      "properties": {
+        "rootClaimId": {
+          "$ref": "#/$defs/ArgumentId",
+          "description": "ID of the root claim argument"
+        },
+        "arguments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Argument"
+          },
+          "minItems": 1
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Relation"
+          }
+        }
+      },
+      "description": "Quantitative Bipolar Argumentation Framework (QBAF)"
+    },
+    "EvaluatedFramework": {
+      "type": "object",
+      "required": ["rootClaimId", "arguments", "relations", "semanticsUsed", "evaluatedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "rootClaimId": {
+          "$ref": "#/$defs/ArgumentId"
+        },
+        "arguments": {
+          "type": "array",
+          "items": {
+            "allOf": [
+              { "$ref": "#/$defs/Argument" },
+              {
+                "type": "object",
+                "required": ["computedStrength"]
+              }
+            ]
+          },
+          "minItems": 1,
+          "description": "Arguments with computed strengths"
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Relation"
+          }
+        },
+        "semanticsUsed": {
+          "$ref": "#/$defs/SemanticsType"
+        },
+        "evaluatedAt": {
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "description": "Framework with computed strengths after semantic evaluation"
+    },
+    "Severity": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"],
+      "description": "Severity level for risk assessment"
+    },
+    "Unknown": {
+      "type": "object",
+      "required": ["id", "description", "impact"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "impact": {
+          "type": "string"
+        },
+        "mitigationStrategy": {
+          "type": "string"
+        }
+      },
+      "description": "An explicit unknown factor"
+    },
+    "RiskFlag": {
+      "type": "object",
+      "required": ["id", "description", "severity", "relatedArgumentIds"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity": {
+          "$ref": "#/$defs/Severity"
+        },
+        "relatedArgumentIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArgumentId"
+          }
+        }
+      },
+      "description": "A risk flag indicating potential issues"
+    },
+    "Uncertainty": {
+      "type": "object",
+      "required": ["unknowns", "riskFlags", "confidenceStatement"],
+      "additionalProperties": false,
+      "properties": {
+        "unknowns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Unknown"
+          }
+        },
+        "riskFlags": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RiskFlag"
+          }
+        },
+        "confidenceStatement": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Human-readable confidence statement"
+        }
+      },
+      "description": "Explicit uncertainty in the reasoning"
+    },
+    "ContestationType": {
+      "type": "string",
+      "enum": [
+        "base_score_modification",
+        "argument_addition",
+        "argument_removal",
+        "relation_addition",
+        "relation_removal",
+        "assumption_challenge",
+        "source_challenge"
+      ],
+      "description": "Type of contestation challenge"
+    },
+    "Contestation": {
+      "type": "object",
+      "required": ["id", "type", "challenge", "submittedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/ContestationId"
+        },
+        "type": {
+          "$ref": "#/$defs/ContestationType"
+        },
+        "challenge": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Description of the challenge"
+        },
+        "targetArgumentId": {
+          "$ref": "#/$defs/ArgumentId"
+        },
+        "targetRelationId": {
+          "$ref": "#/$defs/RelationId"
+        },
+        "targetAssumptionId": {
+          "type": "string"
+        },
+        "targetSourceId": {
+          "$ref": "#/$defs/SourceId"
+        },
+        "newBaseScore": {
+          "$ref": "#/$defs/Score"
+        },
+        "newArgument": {
+          "$ref": "#/$defs/Argument"
+        },
+        "newRelation": {
+          "$ref": "#/$defs/Relation"
+        },
+        "submittedAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "submittedBy": {
+          "type": "string"
+        }
+      },
+      "description": "A structured challenge to the reasoning"
+    },
+    "RecomputeMetadata": {
+      "type": "object",
+      "required": [
+        "priorTraceId",
+        "triggeredBy",
+        "changedArgumentIds",
+        "recomputedAt",
+        "strengthDelta",
+        "decisionChanged",
+        "diffSummary"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "priorTraceId": {
+          "$ref": "#/$defs/TraceId"
+        },
+        "triggeredBy": {
+          "oneOf": [
+            { "$ref": "#/$defs/ContestationId" },
+            { "type": "string", "enum": ["source_update", "manual"] }
+          ]
+        },
+        "changedArgumentIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ArgumentId"
+          }
+        },
+        "recomputedAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "strengthDelta": {
+          "type": "number",
+          "description": "Change in final strength from prior trace"
+        },
+        "decisionChanged": {
+          "type": "boolean"
+        },
+        "diffSummary": {
+          "type": "string"
+        }
+      },
+      "description": "Metadata about a recompute"
+    },
+    "ReviewStatus": {
+      "type": "string",
+      "enum": ["pending", "approved", "rejected", "requires_changes"],
+      "description": "Status of human review"
+    },
+    "HumanReview": {
+      "type": "object",
+      "required": ["status"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/ReviewStatus"
+        },
+        "reviewerId": {
+          "type": "string"
+        },
+        "reviewedAt": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "comments": {
+          "type": "string"
+        },
+        "requiredActions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Human review information"
+    },
+    "DecisionLabel": {
+      "type": "string",
+      "enum": ["supported", "contested", "indeterminate"],
+      "description": "Decision label derived from final strength"
+    },
+    "Decision": {
+      "type": "object",
+      "required": ["label", "finalStrength", "threshold", "conclusion"],
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/DecisionLabel"
+        },
+        "finalStrength": {
+          "$ref": "#/$defs/Score"
+        },
+        "threshold": {
+          "$ref": "#/$defs/Score",
+          "description": "Threshold used to determine label"
+        },
+        "conclusion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Decision derived from the evaluated framework"
+    },
+    "Limitations": {
+      "type": "object",
+      "required": [
+        "scopeLimitations",
+        "temporalLimitations",
+        "sourceLimitations",
+        "methodLimitations"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scopeLimitations": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "temporalLimitations": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "sourceLimitations": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "methodLimitations": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "description": "Explicit limitations of the reasoning"
+    },
+    "IntegrityFields": {
+      "type": "object",
+      "required": [
+        "claimHash",
+        "frameworkHash",
+        "sourcesHash",
+        "uncertaintyHash",
+        "traceHash"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "claimHash": {
+          "$ref": "#/$defs/ContentHash"
+        },
+        "frameworkHash": {
+          "$ref": "#/$defs/ContentHash"
+        },
+        "sourcesHash": {
+          "$ref": "#/$defs/ContentHash"
+        },
+        "uncertaintyHash": {
+          "$ref": "#/$defs/ContentHash"
+        },
+        "traceHash": {
+          "$ref": "#/$defs/ContentHash"
+        }
+      },
+      "description": "Integrity fields for tamper detection"
+    }
+  }
+}
