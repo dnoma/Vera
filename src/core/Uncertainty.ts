@@ -29,9 +29,9 @@ export function createUnknown(
     return Object.freeze({
       ...base,
       mitigationStrategy,
-    });
+    }) as Unknown;
   }
-  return Object.freeze(base);
+  return Object.freeze(base) as Unknown;
 }
 
 /**

@@ -29,25 +29,22 @@ export function createSourceMetadata(
     tags?: readonly string[];
   } = {}
 ): SourceMetadata {
-  let metadata: SourceMetadata = {
+  const metadata: SourceMetadata = {
     type,
     tags: Object.freeze(options.tags ?? []),
+    ...(options.version !== undefined ? { version: options.version } : {}),
+    ...(options.effectiveDate !== undefined
+      ? { effectiveDate: options.effectiveDate }
+      : {}),
+    ...(options.expirationDate !== undefined
+      ? { expirationDate: options.expirationDate }
+      : {}),
+    ...(options.jurisdiction !== undefined
+      ? { jurisdiction: options.jurisdiction }
+      : {}),
   };
 
-  if (options.version !== undefined) {
-    metadata = { ...metadata, version: options.version };
-  }
-  if (options.effectiveDate !== undefined) {
-    metadata = { ...metadata, effectiveDate: options.effectiveDate };
-  }
-  if (options.expirationDate !== undefined) {
-    metadata = { ...metadata, expirationDate: options.expirationDate };
-  }
-  if (options.jurisdiction !== undefined) {
-    metadata = { ...metadata, jurisdiction: options.jurisdiction };
-  }
-
-  return Object.freeze(metadata);
+  return Object.freeze(metadata) as SourceMetadata;
 }
 
 /**

@@ -48,10 +48,10 @@ export function createArgument(
     return Object.freeze({
       ...base,
       computedStrength: options.computedStrength,
-    });
+    }) as Argument;
   }
 
-  return Object.freeze(base);
+  return Object.freeze(base) as Argument;
 }
 
 /**
@@ -67,7 +67,7 @@ export function withComputedStrength(
   return Object.freeze({
     ...argument,
     computedStrength,
-  });
+  }) as Argument & { readonly computedStrength: number };
 }
 
 /**

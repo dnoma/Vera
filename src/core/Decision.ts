@@ -117,10 +117,10 @@ export function createDecision(
     return Object.freeze({
       ...base,
       conditions: Object.freeze([...conditions]),
-    });
+    }) as Decision;
   }
 
-  return Object.freeze(base);
+  return Object.freeze(base) as Decision;
 }
 
 /**
@@ -148,7 +148,7 @@ export function createDecisionFromStrength(
     finalStrength,
     threshold,
     conclusion,
-  });
+  }) as Decision;
 }
 
 /**
