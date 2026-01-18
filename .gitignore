@@ -1,0 +1,73 @@
+# Build output
+dist/
+*.js.map
+*.d.ts.map
+
+# Dependencies
+node_modules/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test coverage
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+secrets.json
+auth.json
+
+# Legal assets (intentionally excluded)
+# These directories should never contain real legal documents
+legal-assets/
+regulations/
+policy-documents/
+client-data/
+case-files/
+jurisdiction-data/
+
+# Datasets (intentionally excluded)
+# No training data, no real documents
+datasets/
+training-data/
+corpus/
+*.jsonl
+*.parquet
+
+# Internal notes and drafts
+internal/
+drafts/
+notes/
+TODO.md
+NOTES.md
+
+# Audit outputs (local only)
+# Generated traces should not be committed
+audit-output/
+traces/
+*.audit.json
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Reference documents (not part of repo)
+docs/*.pdf
+*.pdf
+
+# Feature tracking (local only)
+FEATURES.md
