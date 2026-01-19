@@ -118,5 +118,6 @@ export type EvalRun = {
   readonly openai: OpenAIChatParams;
   readonly results: readonly ExampleResult[];
   readonly summaries: readonly EvalSummary[];
+  readonly humanReviewSummary?: import('./human-review/aggregate.js').HumanReviewAggregates;
   readonly notes?: string;
 };

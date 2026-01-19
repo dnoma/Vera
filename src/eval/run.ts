@@ -20,6 +20,7 @@ import { bestSpanTokenF1, clamp01, spanIsValid, safeJsonParse } from './metrics.
 import { baselinePrompt, qbafPrompt } from './prompts.js';
 import { markdownReport, summarize } from './report.js';
 import { authorityAppropriatenessRate, scoreMinimalSufficiency } from './evidence/scoring.js';
+import { aggregateHumanReviews, loadHumanReviews } from './human-review/aggregate.js';
 import type {
   BaselineModelOutput,
   CuadExample,
@@ -39,6 +40,7 @@ type Args = {
   temperature: number;
   limit: number | undefined;
   categories: readonly string[] | undefined;
+  humanReviewsDir: string | undefined;
   updateReadme: boolean;
   dryRun: boolean;
 };
@@ -78,6 +80,7 @@ function parseArgs(argv: readonly string[]): Args {
     temperature: Number(args['temperature'] ?? 0),
     limit: args['limit'] ? Number(args['limit']) : undefined,
     categories,
+    humanReviewsDir: args['humanReviewsDir'] ? String(args['humanReviewsDir']) : undefined,
     updateReadme: Boolean(args['updateReadme'] ?? false),
     dryRun: Boolean(args['dryRun'] ?? false),
   };
@@ -795,7 +798,11 @@ async function main(): Promise<void> {
   };
   const summaries = summarize({ ...runBase, summaries: [] });
 
-  const run: EvalRun = { ...runBase, summaries };
+  const humanReviewSummary = args.humanReviewsDir
+    ? aggregateHumanReviews(loadHumanReviews(resolve(args.humanReviewsDir)))
+    : undefined;
+
+  const run: EvalRun = { ...runBase, summaries, ...(humanReviewSummary ? { humanReviewSummary } : {}) };
 
   mkdirSync(args.outDir, { recursive: true });
   const outJson = resolve(args.outDir, `${runId}.json`);
