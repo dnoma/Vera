@@ -21,6 +21,7 @@ import { baselinePrompt, qbafPrompt } from './prompts.js';
 import { markdownReport, summarize } from './report.js';
 import { authorityAppropriatenessRate, scoreMinimalSufficiency } from './evidence/scoring.js';
 import { aggregateHumanReviews, loadHumanReviews } from './human-review/aggregate.js';
+import { selectStratifiedExamples } from './sampling/stratified.js';
 import type {
   BaselineModelOutput,
   CuadExample,
@@ -41,6 +42,10 @@ type Args = {
   limit: number | undefined;
   categories: readonly string[] | undefined;
   humanReviewsDir: string | undefined;
+  stratified: boolean;
+  contractLimit: number;
+  perCategoryPerLabel: number;
+  seed: string;
   updateReadme: boolean;
   dryRun: boolean;
 };
@@ -72,6 +77,11 @@ function parseArgs(argv: readonly string[]): Args {
   const categoriesRaw = args['categories'] ? String(args['categories']) : undefined;
   const categories = categoriesRaw ? categoriesRaw.split(',').map(s => s.trim()).filter(Boolean) : undefined;
 
+  const stratified = Boolean(args['stratified'] ?? false);
+  const contractLimit = Number(args['contractLimit'] ?? 20);
+  const perCategoryPerLabel = Number(args['perCategoryPerLabel'] ?? 1);
+  const seed = String(args['seed'] ?? 'vera-eval');
+
   return {
     dataset: String(args['dataset'] ?? 'CUAD_v1'),
     outDir: String(args['outDir'] ?? 'eval-output'),
@@ -81,6 +91,10 @@ function parseArgs(argv: readonly string[]): Args {
     limit: args['limit'] ? Number(args['limit']) : undefined,
     categories,
     humanReviewsDir: args['humanReviewsDir'] ? String(args['humanReviewsDir']) : undefined,
+    stratified,
+    contractLimit,
+    perCategoryPerLabel,
+    seed,
     updateReadme: Boolean(args['updateReadme'] ?? false),
     dryRun: Boolean(args['dryRun'] ?? false),
   };
@@ -742,9 +756,20 @@ async function main(): Promise<void> {
   const categoriesAll = listCuadCategories(examplesAll);
   const selectedCategories = args.categories ?? categoriesAll;
 
-  let examples = examplesAll.filter(e => selectedCategories.includes(e.category));
-  if (args.limit !== undefined) {
-    examples = examples.slice(0, args.limit);
+  const examplesFiltered = examplesAll.filter(e => selectedCategories.includes(e.category));
+
+  let examples: readonly CuadExample[];
+  if (args.stratified) {
+    const { selected } = selectStratifiedExamples(examplesFiltered, {
+      seed: args.seed,
+      contractLimit: args.contractLimit,
+      perCategoryPerLabel: args.perCategoryPerLabel,
+      categories: selectedCategories,
+    });
+    examples = args.limit !== undefined ? selected.slice(0, args.limit) : selected;
+  } else {
+    const sliced = args.limit !== undefined ? examplesFiltered.slice(0, args.limit) : examplesFiltered;
+    examples = sliced;
   }
 
   const openai: OpenAIChatParams = { model: args.model, temperature: args.temperature };
@@ -764,6 +789,9 @@ async function main(): Promise<void> {
           categories: categoriesAll.length,
           selectedCategories: selectedCategories.length,
           examples: examples.length,
+          stratified: args.stratified
+            ? { contractLimit: args.contractLimit, perCategoryPerLabel: args.perCategoryPerLabel, seed: args.seed }
+            : false,
         },
         null,
         2
