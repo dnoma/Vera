@@ -19,6 +19,7 @@ import { openAIChatJson } from './openai/client.js';
 import { bestSpanTokenF1, clamp01, spanIsValid, safeJsonParse } from './metrics.js';
 import { baselinePrompt, qbafPrompt } from './prompts.js';
 import { markdownReport, summarize } from './report.js';
+import { authorityAppropriatenessRate, scoreMinimalSufficiency } from './evidence/scoring.js';
 import type {
   BaselineModelOutput,
   CuadExample,
@@ -305,6 +306,10 @@ async function runBaseline(
         evidenceSpansChecked: 0,
         evidenceSpansValid: 0,
         evidenceTokenOverlapF1: null,
+        evidenceUnitCount: 0,
+        evidenceGoldUnitCount: 0,
+        minimalSufficiencyScore: null,
+        authorityAppropriatenessRate: null,
       };
     }
 
@@ -322,6 +327,16 @@ async function runBaseline(
       evidenceSpans,
       example.goldSpans
     );
+    const mss = scoreMinimalSufficiency({
+      contractText: example.contractText,
+      label: example.label,
+      predictedSpans: evidenceSpans,
+      goldSpans: example.goldSpans,
+    });
+    const authority = authorityAppropriatenessRate({
+      contractText: example.contractText,
+      predictedSpans: evidenceSpans,
+    });
 
     return {
       qaId: example.qaId,
@@ -333,6 +348,10 @@ async function runBaseline(
       evidenceSpansChecked: checked,
       evidenceSpansValid: valid,
       evidenceTokenOverlapF1: f1,
+      evidenceUnitCount: mss.predictedUnitCount,
+      evidenceGoldUnitCount: mss.goldUnitCount,
+      minimalSufficiencyScore: mss.minimalSufficiencyScore,
+      authorityAppropriatenessRate: authority.rate,
     };
   } catch (e) {
     return {
@@ -346,6 +365,10 @@ async function runBaseline(
       evidenceSpansChecked: 0,
       evidenceSpansValid: 0,
       evidenceTokenOverlapF1: null,
+      evidenceUnitCount: 0,
+      evidenceGoldUnitCount: 0,
+      minimalSufficiencyScore: null,
+      authorityAppropriatenessRate: null,
     };
   }
 }
@@ -401,6 +424,10 @@ async function runQbaf(
         evidenceSpansChecked: 0,
         evidenceSpansValid: 0,
         evidenceTokenOverlapF1: null,
+        evidenceUnitCount: 0,
+        evidenceGoldUnitCount: 0,
+        minimalSufficiencyScore: null,
+        authorityAppropriatenessRate: null,
       };
     }
 
@@ -417,6 +444,16 @@ async function runQbaf(
       evidenceSpans,
       example.goldSpans
     );
+    const mss = scoreMinimalSufficiency({
+      contractText: example.contractText,
+      label: example.label,
+      predictedSpans: evidenceSpans,
+      goldSpans: example.goldSpans,
+    });
+    const authority = authorityAppropriatenessRate({
+      contractText: example.contractText,
+      predictedSpans: evidenceSpans,
+    });
 
     const evaluated = evaluateWithDFQuAD(framework);
     const finalStrength = getFinalStrength(evaluated);
@@ -483,6 +520,10 @@ async function runQbaf(
       evidenceSpansChecked: checked,
       evidenceSpansValid: valid,
       evidenceTokenOverlapF1: f1,
+      evidenceUnitCount: mss.predictedUnitCount,
+      evidenceGoldUnitCount: mss.goldUnitCount,
+      minimalSufficiencyScore: mss.minimalSufficiencyScore,
+      authorityAppropriatenessRate: authority.rate,
       schemaValidation: schemaResult,
       frameworkValidation: frameworkResult,
       evaluatedFramework: evaluated,
@@ -501,6 +542,10 @@ async function runQbaf(
       evidenceSpansChecked: 0,
       evidenceSpansValid: 0,
       evidenceTokenOverlapF1: null,
+      evidenceUnitCount: 0,
+      evidenceGoldUnitCount: 0,
+      minimalSufficiencyScore: null,
+      authorityAppropriatenessRate: null,
     };
   }
 }

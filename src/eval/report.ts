@@ -29,6 +29,24 @@ export function summarize(run: EvalRun): readonly EvalSummary[] {
     const evidenceSpanValidityRate = spansChecked === 0 ? null : spansValid / spansChecked;
     const evidenceSpanTokenF1 = f1Values.length === 0 ? null : f1Values.reduce((a, b) => a + b, 0) / f1Values.length;
 
+    const evidenceUnitCounts = results
+      .map(r => r.evidenceUnitCount)
+      .filter((v): v is number => Number.isFinite(v));
+    const evidenceUnitCountMedian =
+      evidenceUnitCounts.length === 0 ? null : median(evidenceUnitCounts);
+
+    const mssValues = results
+      .map(r => r.minimalSufficiencyScore)
+      .filter((v): v is number => typeof v === 'number');
+    const minimalSufficiencyScoreMedian =
+      mssValues.length === 0 ? null : median(mssValues);
+
+    const authorityValues = results
+      .map(r => r.authorityAppropriatenessRate)
+      .filter((v): v is number => typeof v === 'number');
+    const authorityAppropriatenessRate =
+      authorityValues.length === 0 ? null : authorityValues.reduce((a, b) => a + b, 0) / authorityValues.length;
+
     const schemaChecks = results
       .map(r => r.schemaValidation)
       .filter((v): v is NonNullable<typeof v> => v !== undefined);
@@ -86,6 +104,9 @@ export function summarize(run: EvalRun): readonly EvalSummary[] {
       accuracy,
       evidenceSpanValidityRate,
       evidenceSpanTokenF1,
+      evidenceUnitCountMedian,
+      minimalSufficiencyScoreMedian,
+      authorityAppropriatenessRate,
       schemaPassRate,
       frameworkValidRate,
       contestabilityHoldRate,
@@ -96,6 +117,13 @@ export function summarize(run: EvalRun): readonly EvalSummary[] {
   }
 
   return run.methods.map(m => byMethod.get(m)!);
+}
+
+function median(values: readonly number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return sorted[mid]!;
+  return (sorted[mid - 1]! + sorted[mid]!) / 2;
 }
 
 export function markdownReport(run: EvalRun): string {
@@ -124,6 +152,21 @@ export function markdownReport(run: EvalRun): string {
       ? qbaf.avgMinInterventionsToFlip.toFixed(2)
       : 'n/a';
 
+  const bMss =
+    baseline && baseline.minimalSufficiencyScoreMedian !== null
+      ? baseline.minimalSufficiencyScoreMedian.toFixed(3)
+      : 'n/a';
+  const qMss =
+    qbaf && qbaf.minimalSufficiencyScoreMedian !== null
+      ? qbaf.minimalSufficiencyScoreMedian.toFixed(3)
+      : 'n/a';
+
+  const bUnits = baseline && baseline.evidenceUnitCountMedian !== null ? baseline.evidenceUnitCountMedian.toFixed(1) : 'n/a';
+  const qUnits = qbaf && qbaf.evidenceUnitCountMedian !== null ? qbaf.evidenceUnitCountMedian.toFixed(1) : 'n/a';
+
+  const bAuth = baseline ? pct(baseline.authorityAppropriatenessRate) : 'n/a';
+  const qAuth = qbaf ? pct(qbaf.authorityAppropriatenessRate) : 'n/a';
+
   const header = [
     `**CUAD v1 Evaluation**`,
     '',
@@ -136,6 +179,9 @@ export function markdownReport(run: EvalRun): string {
     row('Accuracy', bAcc, qAcc),
     row('Evidence span validity', bSpanValid, qSpanValid),
     row('Evidence span token F1 (vs CUAD)', bF1, qF1),
+    row('Evidence minimal sufficiency (median)', bMss, qMss),
+    row('Evidence units cited (median)', bUnits, qUnits),
+    row('Authority appropriateness (operative)', bAuth, qAuth),
     row('QBAF: schema/framework pass rate', 'n/a', qSchema),
     row('QBAF: contestability checks hold', 'n/a', qContest),
     row('QBAF: base-score flippable rate', 'n/a', qFlippable),

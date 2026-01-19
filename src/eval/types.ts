@@ -56,6 +56,10 @@ export type ExampleResult = {
   readonly evidenceSpansChecked: number;
   readonly evidenceSpansValid: number;
   readonly evidenceTokenOverlapF1: number | null;
+  readonly evidenceUnitCount: number;
+  readonly evidenceGoldUnitCount: number;
+  readonly minimalSufficiencyScore: number | null;
+  readonly authorityAppropriatenessRate: number | null;
 
   readonly frameworkValidation?: ValidationResult;
   readonly schemaValidation?: ValidationResult;
@@ -76,6 +80,9 @@ export type EvalSummary = {
   readonly accuracy: number | null;
   readonly evidenceSpanValidityRate: number | null;
   readonly evidenceSpanTokenF1: number | null;
+  readonly evidenceUnitCountMedian: number | null;
+  readonly minimalSufficiencyScoreMedian: number | null;
+  readonly authorityAppropriatenessRate: number | null;
   readonly schemaPassRate: number | null;
   readonly frameworkValidRate: number | null;
   readonly contestabilityHoldRate: number | null;
