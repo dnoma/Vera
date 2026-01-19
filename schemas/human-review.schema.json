@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vera.local/schemas/human-review.schema.json",
+  "title": "Human Review Rubric (Evaluation)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "reviewId",
+    "createdAt",
+    "reviewer",
+    "case",
+    "ratings",
+    "notes"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "0.1.0" },
+    "reviewId": { "type": "string", "pattern": "^review-[a-f0-9-]{8,}$" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "experienceBand"],
+      "properties": {
+        "role": {
+          "type": "string",
+          "enum": [
+            "solicitor",
+            "barrister",
+            "paralegal",
+            "psl",
+            "law-graduate",
+            "researcher",
+            "other"
+          ]
+        },
+        "experienceBand": {
+          "type": "string",
+          "enum": ["0-2", "3-5", "6-10", "10+"]
+        },
+        "jurisdiction": { "type": "string" },
+        "practiceArea": { "type": "string" }
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dataset", "qaId", "contractTitle", "category", "method"],
+      "properties": {
+        "dataset": { "type": "string" },
+        "qaId": { "type": "string" },
+        "contractTitle": { "type": "string" },
+        "category": { "type": "string" },
+        "method": { "type": "string", "enum": ["baseline", "qbaf"] },
+        "traceHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "ratings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "legalCorrectness",
+        "evidenceSufficiency",
+        "authorityAppropriateness",
+        "traceReviewability",
+        "uncertaintyAppropriateness",
+        "overallAdoptability"
+      ],
+      "properties": {
+        "legalCorrectness": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "evidenceSufficiency": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "authorityAppropriateness": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "traceReviewability": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "uncertaintyAppropriateness": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "overallAdoptability": { "type": "integer", "minimum": 1, "maximum": 5 }
+      }
+    },
+    "notes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary"],
+      "properties": {
+        "summary": { "type": "string" },
+        "failureModes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "misleading-citation",
+              "insufficient-evidence",
+              "over-citation",
+              "missed-exception",
+              "over-confident",
+              "unreviewable-trace",
+              "hidden-assumption",
+              "brittle-outcome",
+              "inappropriate-authority",
+              "other"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "recommendations": { "type": "string" }
+      }
+    }
+  }
+}
+

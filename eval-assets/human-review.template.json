@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "0.1.0",
+  "reviewId": "review-00000000",
+  "createdAt": "2026-01-01T00:00:00.000Z",
+  "reviewer": {
+    "role": "solicitor",
+    "experienceBand": "3-5",
+    "jurisdiction": "England & Wales",
+    "practiceArea": "Commercial"
+  },
+  "case": {
+    "dataset": "CUAD_v1",
+    "qaId": "…",
+    "contractTitle": "…",
+    "category": "…",
+    "method": "qbaf",
+    "traceHash": "…"
+  },
+  "ratings": {
+    "legalCorrectness": 3,
+    "evidenceSufficiency": 3,
+    "authorityAppropriateness": 3,
+    "traceReviewability": 3,
+    "uncertaintyAppropriateness": 3,
+    "overallAdoptability": 3
+  },
+  "notes": {
+    "summary": "…",
+    "failureModes": ["other"],
+    "recommendations": "…"
+  }
+}
+
