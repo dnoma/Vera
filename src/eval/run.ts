@@ -95,6 +95,14 @@ function makeSourceId(contractTitle: string): string {
   return `src-${hash(contractTitle).slice(0, 10)}`;
 }
 
+function makeEvalTraceId(params: {
+  readonly runId: string;
+  readonly method: EvalMethod;
+  readonly qaId: string;
+}): string {
+  return `trace-${hash(params).slice(0, 24)}`;
+}
+
 function buildCuadSource(contractTitle: string, contractText: string) {
   const sourceId = makeSourceId(contractTitle);
   return createSource(
@@ -258,6 +266,127 @@ function computeAuditabilitySignals(
   };
 }
 
+function traceCompletenessRate(evaluated: EvaluatedFramework): number {
+  const nonRoot = evaluated.arguments.filter(a => a.id !== evaluated.rootClaimId);
+  if (nonRoot.length === 0) return 1;
+  const compliant = nonRoot.filter(a => a.sourceRefs.length > 0 || a.assumptions.length > 0);
+  return compliant.length / nonRoot.length;
+}
+
+function counterargumentPresent(evaluated: EvaluatedFramework): boolean {
+  if (evaluated.relations.some(r => r.type === 'attack')) return true;
+  for (const arg of evaluated.arguments) {
+    if (arg.id === evaluated.rootClaimId) continue;
+    if (classifyArgument(evaluated, arg.id) === 'con') return true;
+  }
+  return false;
+}
+
+function runEditSuite(
+  baseFramework: ArgumentationFramework,
+  evaluated: EvaluatedFramework
+): {
+  passRate: number | null;
+  details: readonly {
+    readonly scenarioId: string;
+    readonly passed: boolean;
+    readonly beforeStrength: number;
+    readonly afterStrength: number;
+    readonly delta: number;
+  }[];
+} {
+  const beforeStrength = getFinalStrength(evaluated);
+  const { pro, con } = pickProConArguments(evaluated);
+  const details: {
+    readonly scenarioId: string;
+    readonly passed: boolean;
+    readonly beforeStrength: number;
+    readonly afterStrength: number;
+    readonly delta: number;
+  }[] = [];
+
+  const eps = 1e-12;
+
+  if (pro) {
+    const modified = applyBaseScoreChange(baseFramework, pro, 0);
+    const afterStrength = getFinalStrength(evaluateWithDFQuAD(modified));
+    const passed = afterStrength <= beforeStrength + eps;
+    details.push({
+      scenarioId: 'downweight_top_pro_to_0',
+      passed,
+      beforeStrength,
+      afterStrength,
+      delta: afterStrength - beforeStrength,
+    });
+  }
+
+  if (con) {
+    const modified = applyBaseScoreChange(baseFramework, con, 1);
+    const afterStrength = getFinalStrength(evaluateWithDFQuAD(modified));
+    const passed = afterStrength <= beforeStrength + eps;
+    details.push({
+      scenarioId: 'upweight_top_con_to_1',
+      passed,
+      beforeStrength,
+      afterStrength,
+      delta: afterStrength - beforeStrength,
+    });
+  }
+
+  // Add a reviewer-introduced counterargument that attacks the root claim.
+  // This should not increase support for the root claim.
+  const addedArgId = `arg-edit-${hash({ root: baseFramework.rootClaimId, beforeStrength }).slice(0, 8)}`;
+  const addedRelId = `rel-edit-${hash({ addedArgId }).slice(0, 8)}`;
+  const addedAssumptionId = `assumption-${hash({ addedArgId }).slice(0, 10)}`;
+  const addition: ArgumentationFramework = {
+    ...baseFramework,
+    arguments: sortByKey(
+      [
+        ...baseFramework.arguments,
+        {
+          id: addedArgId,
+          content: 'Reviewer-added counterargument: the cited clause may not meet the required element or is subject to an exception.',
+          baseScore: 0.7,
+          sourceRefs: [],
+          assumptions: [
+            {
+              id: addedAssumptionId,
+              statement: 'Reviewer-introduced counterargument for sensitivity testing.',
+              basis: 'Evaluation edit suite (not sourced to the contract).',
+              isContestable: true,
+            },
+          ],
+        },
+      ],
+      'id'
+    ),
+    relations: sortByKey(
+      [
+        ...baseFramework.relations,
+        {
+          id: addedRelId,
+          from: addedArgId,
+          to: baseFramework.rootClaimId,
+          type: 'attack',
+        },
+      ],
+      'id'
+    ),
+  };
+  const afterStrength = getFinalStrength(evaluateWithDFQuAD(addition));
+  details.push({
+    scenarioId: 'add_counterargument_attack_root',
+    passed: afterStrength <= beforeStrength + eps,
+    beforeStrength,
+    afterStrength,
+    delta: afterStrength - beforeStrength,
+  });
+
+  if (details.length === 0) return { passRate: null, details };
+  const passRate = details.filter(d => d.passed).length / details.length;
+  return { passRate, details };
+}
+
 async function runBaseline(
   example: CuadExample,
   openai: OpenAIChatParams,
@@ -377,7 +506,8 @@ async function runQbaf(
   example: CuadExample,
   openai: OpenAIChatParams,
   apiKey: string,
-  cacheDir: string
+  cacheDir: string,
+  runContext: { readonly runId: string; readonly startedAt: string }
 ): Promise<ExampleResult> {
   try {
     const source = buildCuadSource(example.contractTitle, example.contractText);
@@ -463,12 +593,14 @@ async function runQbaf(
     );
 
     const trace = createAuditTrace({
+      traceId: makeEvalTraceId({ runId: runContext.runId, method: 'qbaf', qaId: example.qaId }),
       version: '0.1.0',
+      createdAt: runContext.startedAt,
       claim: {
         id: `claim-${hash(example.qaId).slice(0, 8)}`,
         statement: `This contract contains a clause related to "${example.category}".`,
         context: `CUAD v1 evaluation: ${example.contractTitle}`,
-        createdAt: nowIso(),
+        createdAt: runContext.startedAt,
       },
       framework: evaluated,
       sources: [source],
@@ -510,6 +642,34 @@ async function runQbaf(
       });
     }
 
+    const trace2 = createAuditTrace({
+      traceId: makeEvalTraceId({ runId: runContext.runId, method: 'qbaf', qaId: example.qaId }),
+      version: '0.1.0',
+      createdAt: runContext.startedAt,
+      claim: {
+        id: `claim-${hash(example.qaId).slice(0, 8)}`,
+        statement: `This contract contains a clause related to "${example.category}".`,
+        context: `CUAD v1 evaluation: ${example.contractTitle}`,
+        createdAt: runContext.startedAt,
+      },
+      framework: evaluated,
+      sources: [source],
+      decision,
+      uncertainty: {
+        unknowns: [],
+        riskFlags: [],
+        confidenceStatement: 'Evaluation harness output.',
+      },
+      limitations: {
+        scopeLimitations: [],
+        temporalLimitations: [],
+        sourceLimitations: [],
+        methodLimitations: [],
+      },
+    });
+
+    const editSuite = runEditSuite(baseFramework, evaluated);
+
     return {
       qaId: example.qaId,
       contractTitle: example.contractTitle,
@@ -527,6 +687,12 @@ async function runQbaf(
       schemaValidation: schemaResult,
       frameworkValidation: frameworkResult,
       evaluatedFramework: evaluated,
+      traceHash: trace.integrity.traceHash,
+      traceReproducible: trace.integrity.traceHash === trace2.integrity.traceHash,
+      traceCompletenessRate: traceCompletenessRate(evaluated),
+      counterargumentPresent: counterargumentPresent(evaluated),
+      editSuitePassRate: editSuite.passRate,
+      editSuiteDetails: editSuite.details,
       contestability: checks,
       auditability: computeAuditabilitySignals(baseFramework, evaluated),
     };
@@ -610,7 +776,7 @@ async function main(): Promise<void> {
       if (method === 'baseline') {
         results.push(await runBaseline(example, openai, apiKey, cacheDir));
       } else {
-        results.push(await runQbaf(example, openai, apiKey, cacheDir));
+        results.push(await runQbaf(example, openai, apiKey, cacheDir, { runId, startedAt }));
       }
     }
   }

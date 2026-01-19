@@ -47,6 +47,30 @@ export function summarize(run: EvalRun): readonly EvalSummary[] {
     const authorityAppropriatenessRate =
       authorityValues.length === 0 ? null : authorityValues.reduce((a, b) => a + b, 0) / authorityValues.length;
 
+    const reproducible = results
+      .map(r => r.traceReproducible)
+      .filter((v): v is boolean => typeof v === 'boolean');
+    const traceReproducibilityRate =
+      reproducible.length === 0 ? null : reproducible.filter(v => v).length / reproducible.length;
+
+    const completenessValues = results
+      .map(r => r.traceCompletenessRate)
+      .filter((v): v is number => typeof v === 'number');
+    const traceCompletenessRate =
+      completenessValues.length === 0 ? null : completenessValues.reduce((a, b) => a + b, 0) / completenessValues.length;
+
+    const counterargumentValues = results
+      .map(r => r.counterargumentPresent)
+      .filter((v): v is boolean => typeof v === 'boolean');
+    const counterargumentPresentRate =
+      counterargumentValues.length === 0 ? null : counterargumentValues.filter(v => v).length / counterargumentValues.length;
+
+    const editPassValues = results
+      .map(r => r.editSuitePassRate)
+      .filter((v): v is number => typeof v === 'number');
+    const editSuitePassRate =
+      editPassValues.length === 0 ? null : editPassValues.reduce((a, b) => a + b, 0) / editPassValues.length;
+
     const schemaChecks = results
       .map(r => r.schemaValidation)
       .filter((v): v is NonNullable<typeof v> => v !== undefined);
@@ -107,6 +131,10 @@ export function summarize(run: EvalRun): readonly EvalSummary[] {
       evidenceUnitCountMedian,
       minimalSufficiencyScoreMedian,
       authorityAppropriatenessRate,
+      traceReproducibilityRate,
+      traceCompletenessRate,
+      counterargumentPresentRate,
+      editSuitePassRate,
       schemaPassRate,
       frameworkValidRate,
       contestabilityHoldRate,

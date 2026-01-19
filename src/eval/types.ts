@@ -64,6 +64,18 @@ export type ExampleResult = {
   readonly frameworkValidation?: ValidationResult;
   readonly schemaValidation?: ValidationResult;
   readonly evaluatedFramework?: EvaluatedFramework;
+  readonly traceHash?: string;
+  readonly traceReproducible?: boolean;
+  readonly traceCompletenessRate?: number | null;
+  readonly counterargumentPresent?: boolean;
+  readonly editSuitePassRate?: number | null;
+  readonly editSuiteDetails?: readonly {
+    readonly scenarioId: string;
+    readonly passed: boolean;
+    readonly beforeStrength: number;
+    readonly afterStrength: number;
+    readonly delta: number;
+  }[];
 
   readonly contestability?: readonly ContestabilityCheck[];
   readonly auditability?: {
@@ -83,6 +95,10 @@ export type EvalSummary = {
   readonly evidenceUnitCountMedian: number | null;
   readonly minimalSufficiencyScoreMedian: number | null;
   readonly authorityAppropriatenessRate: number | null;
+  readonly traceReproducibilityRate: number | null;
+  readonly traceCompletenessRate: number | null;
+  readonly counterargumentPresentRate: number | null;
+  readonly editSuitePassRate: number | null;
   readonly schemaPassRate: number | null;
   readonly frameworkValidRate: number | null;
   readonly contestabilityHoldRate: number | null;
