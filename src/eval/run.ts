@@ -51,7 +51,7 @@ type Args = {
 };
 
 const PROMPT_VERSION_BASELINE = 2;
-const PROMPT_VERSION_QBAF = 3;
+const PROMPT_VERSION_QBAF = 4;
 
 function parseArgs(argv: readonly string[]): Args {
   const args: Record<string, string | boolean> = {};
