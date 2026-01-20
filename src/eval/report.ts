@@ -99,13 +99,37 @@ export function summarize(run: EvalRun): readonly EvalSummary[] {
       .map(r => r.auditability)
       .filter((v): v is NonNullable<typeof v> => v !== undefined);
 
-    const interventions = results
-      .map(r => r.auditability?.minInterventionsToFlip)
-      .filter((v): v is number => typeof v === 'number');
-    const avgMinInterventionsToFlip =
-      interventions.length === 0
+    const baseInterventions = results
+      .map(r => r.auditability?.minBaseScoreInterventionsToFlip)
+      .filter((v): v is number | null => v === null || typeof v === 'number');
+    const boundedInterventions = results
+      .map(r => r.auditability?.minBoundedInterventionsToFlip)
+      .filter((v): v is number | null => v === null || typeof v === 'number');
+
+    const baseOnly = baseInterventions.filter((v): v is number => typeof v === 'number');
+    const avgMinBaseScoreInterventionsToFlip =
+      baseOnly.length === 0 ? null : baseOnly.reduce((a, b) => a + b, 0) / baseOnly.length;
+
+    const boundedOnly = boundedInterventions.filter((v): v is number => typeof v === 'number');
+    const avgMinBoundedInterventionsToFlip =
+      boundedOnly.length === 0 ? null : boundedOnly.reduce((a, b) => a + b, 0) / boundedOnly.length;
+
+    const baseScoreFlippableRate =
+      auditabilityRecords.length === 0
         ? null
-        : interventions.reduce((a, b) => a + b, 0) / interventions.length;
+        : auditabilityRecords.filter(a => a.minBaseScoreInterventionsToFlip !== null).length /
+          auditabilityRecords.length;
+
+    const boundedFlippableRate =
+      auditabilityRecords.length === 0
+        ? null
+        : auditabilityRecords.filter(a => a.minBoundedInterventionsToFlip !== null).length /
+          auditabilityRecords.length;
+
+    const interventions = results
+      .map(r => r.auditability?.minBoundedInterventionsToFlip)
+      .filter((v): v is number => typeof v === 'number');
+    const avgMinInterventionsToFlip = interventions.length === 0 ? null : interventions.reduce((a, b) => a + b, 0) / interventions.length;
 
     const maxDeltas = results
       .map(r => r.auditability?.maxSingleArgumentDelta)
@@ -114,12 +138,6 @@ export function summarize(run: EvalRun): readonly EvalSummary[] {
       maxDeltas.length === 0
         ? null
         : maxDeltas.reduce((a, b) => a + b, 0) / maxDeltas.length;
-
-    const baseScoreFlippableRate =
-      auditabilityRecords.length === 0
-        ? null
-        : auditabilityRecords.filter(a => a.minInterventionsToFlip !== undefined).length /
-          auditabilityRecords.length;
 
     byMethod.set(method, {
       method,
@@ -138,9 +156,11 @@ export function summarize(run: EvalRun): readonly EvalSummary[] {
       schemaPassRate,
       frameworkValidRate,
       contestabilityHoldRate,
-      avgMinInterventionsToFlip,
-      avgMaxSingleArgumentDelta,
       baseScoreFlippableRate,
+      boundedFlippableRate,
+      avgMinBaseScoreInterventionsToFlip,
+      avgMinBoundedInterventionsToFlip,
+      avgMaxSingleArgumentDelta,
     });
   }
 
@@ -188,13 +208,14 @@ export function markdownReport(run: EvalRun): string {
   const qSchema = qbaf ? pct(qbaf.schemaPassRate) : 'n/a';
   const qContest = qbaf ? pct(qbaf.contestabilityHoldRate) : 'n/a';
   const qFlippable = qbaf ? pct(qbaf.baseScoreFlippableRate) : 'n/a';
+  const qBoundedFlippable = qbaf ? pct(qbaf.boundedFlippableRate) : 'n/a';
   const qMaxDelta =
     qbaf && qbaf.avgMaxSingleArgumentDelta !== null
       ? qbaf.avgMaxSingleArgumentDelta.toFixed(3)
       : 'n/a';
   const qInterventions =
-    qbaf && qbaf.avgMinInterventionsToFlip !== null
-      ? qbaf.avgMinInterventionsToFlip.toFixed(2)
+    qbaf && qbaf.avgMinBoundedInterventionsToFlip !== null
+      ? qbaf.avgMinBoundedInterventionsToFlip.toFixed(2)
       : 'n/a';
 
   const header = [
@@ -218,6 +239,7 @@ export function markdownReport(run: EvalRun): string {
     row('Governance', 'AuditTrace schema pass rate', 'n/a', qSchema),
     row('Robustness', 'Monotonicity checks hold (P1)', 'n/a', qContest),
     row('Robustness', 'Base-score flippable rate', 'n/a', qFlippable),
+    row('Robustness', 'Bounded-intervention flippable rate', 'n/a', qBoundedFlippable),
     row('Robustness', 'Max single-argument delta (avg)', 'n/a', qMaxDelta),
     row('Auditability', 'Min interventions to flip (avg, if flippable)', 'n/a', qInterventions),
     '',

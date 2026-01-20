@@ -22,6 +22,8 @@ import { markdownReport, summarize } from './report.js';
 import { authorityAppropriatenessRate, scoreMinimalSufficiency } from './evidence/scoring.js';
 import { aggregateHumanReviews, loadHumanReviews } from './human-review/aggregate.js';
 import { selectStratifiedExamples } from './sampling/stratified.js';
+import { counterargumentPresent, runEditSuite, traceCompletenessRate } from './contestation/editSuite.js';
+import { minInterventionsToFlipDecision } from './contestation/auditability.js';
 import type {
   BaselineModelOutput,
   CuadExample,
@@ -192,59 +194,6 @@ function checkProperty1(
   return { holds, details };
 }
 
-function labelFromStrength(
-  strength: number,
-  threshold: number = 0.5
-): 'supported' | 'contested' {
-  return strength > threshold ? 'supported' : 'contested';
-}
-
-function minInterventionsToFlipDecision(
-  framework: ArgumentationFramework,
-  beforeLabel: 'supported' | 'contested'
-): number | undefined {
-  const candidates = framework.arguments
-    .filter(a => a.id !== framework.rootClaimId)
-    .map(a => a.id);
-
-  // Brute-force over small graphs: each argument is either unchanged, set to 0, or set to 1.
-  // With <= 6 non-root args, this is at most 3^6 = 729 evaluations.
-  const choices = [undefined, 0, 1] as const;
-
-  let best: number | undefined;
-
-  function search(index: number, modified: ArgumentationFramework, changedCount: number): void {
-    if (best !== undefined && changedCount >= best) return;
-
-    if (index >= candidates.length) {
-      const after = getFinalStrength(evaluateWithDFQuAD(modified));
-      const afterLabel = labelFromStrength(after);
-      if (afterLabel !== beforeLabel) {
-        best = changedCount;
-      }
-      return;
-    }
-
-    const id = candidates[index]!;
-    const original = framework.arguments.find(a => a.id === id);
-    const originalScore = original?.baseScore;
-
-    for (const choice of choices) {
-      if (choice === undefined) {
-        search(index + 1, modified, changedCount);
-        continue;
-      }
-
-      const next = applyBaseScoreChange(modified, id, choice);
-      const didChange = originalScore !== undefined && originalScore !== choice;
-      search(index + 1, next, changedCount + (didChange ? 1 : 0));
-    }
-  }
-
-  search(0, framework, 0);
-  return best;
-}
-
 function computeMaxSingleArgumentDelta(
   framework: ArgumentationFramework,
   beforeStrength: number
@@ -269,139 +218,16 @@ function computeAuditabilitySignals(
   evaluated: EvaluatedFramework
 ): NonNullable<ExampleResult['auditability']> {
   const beforeStrength = getFinalStrength(evaluated);
-  const beforeLabel = labelFromStrength(beforeStrength);
 
   const maxSingleArgumentDelta = computeMaxSingleArgumentDelta(baseFramework, beforeStrength);
-  const minInterventionsToFlip = minInterventionsToFlipDecision(baseFramework, beforeLabel);
+  const interventions = minInterventionsToFlipDecision(baseFramework, evaluated);
 
   return {
     ...(maxSingleArgumentDelta !== undefined ? { maxSingleArgumentDelta } : {}),
-    ...(minInterventionsToFlip !== undefined ? { minInterventionsToFlip } : {}),
-    ...(minInterventionsToFlip === undefined
-      ? { note: 'No label flip found via base-score-only perturbations.' }
-      : {}),
+    minBaseScoreInterventionsToFlip: interventions.minBaseScoreInterventionsToFlip,
+    minBoundedInterventionsToFlip: interventions.minBoundedInterventionsToFlip,
+    ...(!interventions.boundedFlippable ? { note: interventions.note } : {}),
   };
-}
-
-function traceCompletenessRate(evaluated: EvaluatedFramework): number {
-  const nonRoot = evaluated.arguments.filter(a => a.id !== evaluated.rootClaimId);
-  if (nonRoot.length === 0) return 1;
-  const compliant = nonRoot.filter(a => a.sourceRefs.length > 0 || a.assumptions.length > 0);
-  return compliant.length / nonRoot.length;
-}
-
-function counterargumentPresent(evaluated: EvaluatedFramework): boolean {
-  if (evaluated.relations.some(r => r.type === 'attack')) return true;
-  for (const arg of evaluated.arguments) {
-    if (arg.id === evaluated.rootClaimId) continue;
-    if (classifyArgument(evaluated, arg.id) === 'con') return true;
-  }
-  return false;
-}
-
-function runEditSuite(
-  baseFramework: ArgumentationFramework,
-  evaluated: EvaluatedFramework
-): {
-  passRate: number | null;
-  details: readonly {
-    readonly scenarioId: string;
-    readonly passed: boolean;
-    readonly beforeStrength: number;
-    readonly afterStrength: number;
-    readonly delta: number;
-  }[];
-} {
-  const beforeStrength = getFinalStrength(evaluated);
-  const { pro, con } = pickProConArguments(evaluated);
-  const details: {
-    readonly scenarioId: string;
-    readonly passed: boolean;
-    readonly beforeStrength: number;
-    readonly afterStrength: number;
-    readonly delta: number;
-  }[] = [];
-
-  const eps = 1e-12;
-
-  if (pro) {
-    const modified = applyBaseScoreChange(baseFramework, pro, 0);
-    const afterStrength = getFinalStrength(evaluateWithDFQuAD(modified));
-    const passed = afterStrength <= beforeStrength + eps;
-    details.push({
-      scenarioId: 'downweight_top_pro_to_0',
-      passed,
-      beforeStrength,
-      afterStrength,
-      delta: afterStrength - beforeStrength,
-    });
-  }
-
-  if (con) {
-    const modified = applyBaseScoreChange(baseFramework, con, 1);
-    const afterStrength = getFinalStrength(evaluateWithDFQuAD(modified));
-    const passed = afterStrength <= beforeStrength + eps;
-    details.push({
-      scenarioId: 'upweight_top_con_to_1',
-      passed,
-      beforeStrength,
-      afterStrength,
-      delta: afterStrength - beforeStrength,
-    });
-  }
-
-  // Add a reviewer-introduced counterargument that attacks the root claim.
-  // This should not increase support for the root claim.
-  const addedArgId = `arg-edit-${hash({ root: baseFramework.rootClaimId, beforeStrength }).slice(0, 8)}`;
-  const addedRelId = `rel-edit-${hash({ addedArgId }).slice(0, 8)}`;
-  const addedAssumptionId = `assumption-${hash({ addedArgId }).slice(0, 10)}`;
-  const addition: ArgumentationFramework = {
-    ...baseFramework,
-    arguments: sortByKey(
-      [
-        ...baseFramework.arguments,
-        {
-          id: addedArgId,
-          content: 'Reviewer-added counterargument: the cited clause may not meet the required element or is subject to an exception.',
-          baseScore: 0.7,
-          sourceRefs: [],
-          assumptions: [
-            {
-              id: addedAssumptionId,
-              statement: 'Reviewer-introduced counterargument for sensitivity testing.',
-              basis: 'Evaluation edit suite (not sourced to the contract).',
-              isContestable: true,
-            },
-          ],
-        },
-      ],
-      'id'
-    ),
-    relations: sortByKey(
-      [
-        ...baseFramework.relations,
-        {
-          id: addedRelId,
-          from: addedArgId,
-          to: baseFramework.rootClaimId,
-          type: 'attack',
-        },
-      ],
-      'id'
-    ),
-  };
-  const afterStrength = getFinalStrength(evaluateWithDFQuAD(addition));
-  details.push({
-    scenarioId: 'add_counterargument_attack_root',
-    passed: afterStrength <= beforeStrength + eps,
-    beforeStrength,
-    afterStrength,
-    delta: afterStrength - beforeStrength,
-  });
-
-  if (details.length === 0) return { passRate: null, details };
-  const passRate = details.filter(d => d.passed).length / details.length;
-  return { passRate, details };
 }
 
 async function runBaseline(

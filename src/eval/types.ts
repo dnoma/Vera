@@ -79,7 +79,8 @@ export type ExampleResult = {
 
   readonly contestability?: readonly ContestabilityCheck[];
   readonly auditability?: {
-    readonly minInterventionsToFlip?: number;
+    readonly minBaseScoreInterventionsToFlip?: number | null;
+    readonly minBoundedInterventionsToFlip?: number | null;
     readonly maxSingleArgumentDelta?: number;
     readonly note?: string;
   };
@@ -102,9 +103,11 @@ export type EvalSummary = {
   readonly schemaPassRate: number | null;
   readonly frameworkValidRate: number | null;
   readonly contestabilityHoldRate: number | null;
-  readonly avgMinInterventionsToFlip: number | null;
-  readonly avgMaxSingleArgumentDelta: number | null;
   readonly baseScoreFlippableRate: number | null;
+  readonly boundedFlippableRate: number | null;
+  readonly avgMinBaseScoreInterventionsToFlip: number | null;
+  readonly avgMinBoundedInterventionsToFlip: number | null;
+  readonly avgMaxSingleArgumentDelta: number | null;
 };
 
 export type EvalRun = {
