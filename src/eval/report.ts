@@ -179,6 +179,9 @@ export function markdownReport(run: EvalRun): string {
   const baseline = summaries.find(s => s.method === 'baseline');
   const qbaf = summaries.find(s => s.method === 'qbaf');
 
+  const baselineErrors = run.results.filter(r => r.method === 'baseline' && r.error !== undefined).length;
+  const qbafErrors = run.results.filter(r => r.method === 'qbaf' && r.error !== undefined).length;
+
   const bAcc = baseline ? pct(baseline.accuracy) : 'n/a';
   const qAcc = qbaf ? pct(qbaf.accuracy) : 'n/a';
 
@@ -224,6 +227,8 @@ export function markdownReport(run: EvalRun): string {
     `- Dataset: \`${run.datasetPath}\``,
     `- Model: \`${run.openai.model}\` (temperature=${run.openai.temperature})`,
     `- Contracts: ${run.contractCount}, Categories: ${run.categoryCount}`,
+    `- Baseline completion: ${baseline ? `${baseline.predicted}/${baseline.total}` : 'n/a'} (errors: ${baseline ? baselineErrors : 'n/a'})`,
+    `- QBAF completion: ${qbaf ? `${qbaf.predicted}/${qbaf.total}` : 'n/a'} (errors: ${qbaf ? qbafErrors : 'n/a'})`,
     '',
     '| Axis | Metric | Baseline (Structured JSON) | QBAF (Graph + DF‑QuAD) |',
     '|---|---|---:|---:|',
