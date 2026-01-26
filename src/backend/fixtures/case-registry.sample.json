@@ -1,0 +1,31 @@
+[
+  {
+    "caseId": "sg-2019-sgca-5",
+    "jurisdiction": "SG",
+    "court": "SGCA",
+    "decisionDate": "2019-06-03",
+    "neutralCitations": ["[2019] SGCA 5"],
+    "reportCitations": ["(2019) 2 SLR 200"],
+    "partyNames": {
+      "canonical": "Foo Pte Ltd v Bar Pte Ltd",
+      "aliases": ["Foo v Bar"]
+    },
+    "lawnetDocId": { "source": "lawnet", "id": "ln-sgca-2019-5" },
+    "status": "published"
+  },
+  {
+    "caseId": "sg-2024-sghc-10",
+    "jurisdiction": "SG",
+    "court": "SGHC",
+    "decisionDate": "2024-02-15",
+    "neutralCitations": ["[2024] SGHC 10"],
+    "reportCitations": ["(2024) 1 SLR 100"],
+    "partyNames": {
+      "canonical": "Public Prosecutor v Tan Ah Kow",
+      "aliases": ["PP v Tan", "PP v Tan Ah Kow"]
+    },
+    "lawnetDocId": "ln-sghc-2024-10",
+    "status": "unreported"
+  }
+]
+
