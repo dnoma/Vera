@@ -14,6 +14,10 @@ import type {
   EvaluatedFramework,
 } from '../core/types.js';
 import { loadCuadExamples, listCuadCategories } from './cuad/loadCuad.js';
+import { loadLegalBenchExamples } from './legalbench/loadLegalBench.js';
+import type { LegalBenchReasoningType, LegalBenchTaskType } from './legalbench/types.js';
+import { runLegalBenchEval } from './legalbench/runner.js';
+import { legalBenchMarkdownReport } from './legalbench/report.js';
 import { computeCacheKey, readCache, writeCache } from './cache.js';
 import { openAIChatJson } from './openai/client.js';
 import { bestSpanTokenF1, clamp01, spanIsValid, safeJsonParse } from './metrics.js';
@@ -37,6 +41,14 @@ import type {
 
 type Args = {
   dataset: string;
+  legalBenchRootDir: string;
+  legalBenchSplit: string;
+  legalBenchTasks: readonly string[] | undefined;
+  legalBenchReasoningTypes: readonly LegalBenchReasoningType[] | undefined;
+  legalBenchTaskTypes: readonly LegalBenchTaskType[] | undefined;
+  legalBenchPerTask: number | undefined;
+  legalBenchProgressEvery: number | undefined;
+  legalBenchCheckpointEvery: number | undefined;
   outDir: string;
   methods: readonly EvalMethod[];
   model: string;
@@ -79,6 +91,31 @@ function parseArgs(argv: readonly string[]): Args {
   const categoriesRaw = args['categories'] ? String(args['categories']) : undefined;
   const categories = categoriesRaw ? categoriesRaw.split(',').map(s => s.trim()).filter(Boolean) : undefined;
 
+  const lbTasksRaw = args['tasks'] ? String(args['tasks']) : undefined;
+  const legalBenchTasks = lbTasksRaw
+    ? lbTasksRaw.split(',').map(s => s.trim()).filter(Boolean)
+    : undefined;
+
+  const lbReasoningRaw = args['reasoningTypes'] ? String(args['reasoningTypes']) : undefined;
+  const legalBenchReasoningTypes = lbReasoningRaw
+    ? (lbReasoningRaw.split(',').map(s => s.trim()).filter(Boolean) as LegalBenchReasoningType[])
+    : undefined;
+
+  const lbTaskTypesRaw = args['taskTypes'] ? String(args['taskTypes']) : undefined;
+  const legalBenchTaskTypes = lbTaskTypesRaw
+    ? (lbTaskTypesRaw.split(',').map(s => s.trim()).filter(Boolean) as LegalBenchTaskType[])
+    : undefined;
+
+  const legalBenchPerTask = args['perTask'] ? Number(args['perTask']) : undefined;
+  const legalBenchProgressEvery = args['progressEvery']
+    ? Number(args['progressEvery'])
+    : undefined;
+  const legalBenchCheckpointEvery = args['checkpointEvery']
+    ? Number(args['checkpointEvery'])
+    : undefined;
+  const legalBenchSplit = String(args['split'] ?? 'test');
+  const legalBenchRootDir = String(args['legalBenchRootDir'] ?? 'data/legalbench');
+
   const stratified = Boolean(args['stratified'] ?? false);
   const contractLimit = Number(args['contractLimit'] ?? 20);
   const perCategoryPerLabel = Number(args['perCategoryPerLabel'] ?? 1);
@@ -86,6 +123,14 @@ function parseArgs(argv: readonly string[]): Args {
 
   return {
     dataset: String(args['dataset'] ?? 'CUAD_v1'),
+    legalBenchRootDir,
+    legalBenchSplit,
+    legalBenchTasks,
+    legalBenchReasoningTypes,
+    legalBenchTaskTypes,
+    legalBenchPerTask,
+    legalBenchProgressEvery,
+    legalBenchCheckpointEvery,
     outDir: String(args['outDir'] ?? 'eval-output'),
     methods,
     model: String(args['model'] ?? process.env['OPENAI_MODEL'] ?? 'gpt-4.1-mini'),
@@ -577,6 +622,69 @@ function updateReadme(readmePath: string, markdown: string): void {
 async function main(): Promise<void> {
   const args = parseArgs(process.argv);
   const apiKey = process.env['OPENAI_API_KEY'];
+
+  if (args.dataset.toLowerCase() === 'legalbench') {
+    const examples = loadLegalBenchExamples({
+      rootDir: args.legalBenchRootDir,
+      split: args.legalBenchSplit,
+      ...(args.legalBenchTasks ? { tasks: args.legalBenchTasks } : {}),
+      ...(args.legalBenchReasoningTypes
+        ? { reasoningTypes: args.legalBenchReasoningTypes }
+        : {}),
+      ...(args.legalBenchTaskTypes ? { taskTypes: args.legalBenchTaskTypes } : {}),
+      ...(args.legalBenchPerTask !== undefined
+        ? { perTask: args.legalBenchPerTask }
+        : {}),
+    });
+
+    if (args.dryRun) {
+      // eslint-disable-next-line no-console
+      console.log(
+        JSON.stringify(
+          {
+            dataset: 'legalbench',
+            rootDir: args.legalBenchRootDir,
+            split: args.legalBenchSplit,
+            tasks: [...new Set(examples.map(e => e.task))].sort((a, b) =>
+              a.localeCompare(b)
+            ),
+            examples: examples.length,
+          },
+          null,
+          2
+        )
+      );
+      return;
+    }
+
+    if (!apiKey) throw new Error('OPENAI_API_KEY is required for eval runs');
+
+    const run = await runLegalBenchEval({
+      datasetPath: args.legalBenchRootDir,
+      split: args.legalBenchSplit,
+      outDir: args.outDir,
+      examples,
+      openai: { model: args.model, temperature: args.temperature },
+      apiKey,
+      ...(args.legalBenchProgressEvery !== undefined
+        ? { progressEvery: args.legalBenchProgressEvery }
+        : {}),
+      ...(args.legalBenchCheckpointEvery !== undefined
+        ? { checkpointEvery: args.legalBenchCheckpointEvery }
+        : {}),
+    });
+
+    mkdirSync(args.outDir, { recursive: true });
+    const md = legalBenchMarkdownReport(run);
+    writeFileSync(
+      resolve(args.outDir, 'LegalBench-README-snippet.md'),
+      md,
+      'utf-8'
+    );
+    // eslint-disable-next-line no-console
+    console.log(`Wrote ${resolve(args.outDir, 'legalbench-latest.json')}`);
+    return;
+  }
 
   const examplesAll = loadCuadExamples(args.dataset);
   const categoriesAll = listCuadCategories(examplesAll);
