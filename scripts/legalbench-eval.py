@@ -258,6 +258,16 @@ def main() -> None:
     parser.add_argument("--run-name", default=None, help="Optional run name shown in the report.")
     parser.add_argument("--legalbench-dir", default="data/legalbench", help="Path to LegalBench clone directory.")
     parser.add_argument("--tasks-dir", default="data/legalbench/tasks", help="Path to tasks directory.")
+    parser.add_argument(
+        "--tasks",
+        default=None,
+        help="Comma-separated task names to score (default: tasks present in predictions). Use --all-tasks to force all.",
+    )
+    parser.add_argument(
+        "--all-tasks",
+        action="store_true",
+        help="Score all LegalBench tasks (missing predictions count as empty strings).",
+    )
     args = parser.parse_args()
 
     preds_rows = read_jsonl(args.predictions)
@@ -276,7 +286,12 @@ def main() -> None:
         idx = normalize_id(obj.get("id"))
         preds_by_task.setdefault(task, {})[idx] = str(pred)
 
-    tasks = load_tasks_list(args.legalbench_dir)
+    if args.all_tasks:
+        tasks = load_tasks_list(args.legalbench_dir)
+    elif args.tasks:
+        tasks = [t.strip() for t in str(args.tasks).split(",") if t.strip()]
+    else:
+        tasks = sorted(preds_by_task.keys())
     evaluation_module = load_evaluator(args.legalbench_dir)
 
     results: List[TaskResult] = []
