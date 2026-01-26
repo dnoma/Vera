@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "case-meta.schema.json",
+  "title": "CaseMeta",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "caseId",
+    "jurisdiction",
+    "court",
+    "decisionDate",
+    "neutralCitations",
+    "reportCitations",
+    "partyNames"
+  ],
+  "properties": {
+    "caseId": { "type": "string", "minLength": 1 },
+    "jurisdiction": { "const": "SG" },
+    "court": { "type": "string", "minLength": 1 },
+    "decisionDate": { "type": "string", "format": "date" },
+    "neutralCitations": { "type": "array", "items": { "type": "string" } },
+    "reportCitations": { "type": "array", "items": { "type": "string" } },
+    "partyNames": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonical", "aliases"],
+      "properties": {
+        "canonical": { "type": "string", "minLength": 1 },
+        "aliases": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "lawnetDocId": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "id"],
+          "properties": {
+            "source": { "const": "lawnet" },
+            "id": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "status": { "enum": ["published", "unreported"] },
+    "treatment": { "type": "string" }
+  }
+}
+
