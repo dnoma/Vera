@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import { hash } from '../../integrity/hash.js';
 import type { OpenAIChatParams } from '../types.js';
@@ -50,25 +50,61 @@ type RunLegalBenchParams = {
   readonly apiKey: string;
   readonly progressEvery?: number;
   readonly checkpointEvery?: number;
+  readonly resumeFrom?: string;
 };
 
 function nowIso(): string {
   return new Date().toISOString();
 }
 
+type PartialRun = {
+  readonly runId: string;
+  readonly startedAt: string;
+  readonly datasetPath: string;
+  readonly split: string;
+  readonly openai: OpenAIChatParams;
+  readonly results: readonly LegalBenchExampleResult[];
+};
+
+function tryLoadResume(params: RunLegalBenchParams): PartialRun | null {
+  const path = params.resumeFrom;
+  if (!path) return null;
+  if (!existsSync(path)) return null;
+
+  try {
+    const parsed = JSON.parse(readFileSync(path, 'utf-8')) as PartialRun;
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (parsed.datasetPath !== params.datasetPath) return null;
+    if (parsed.split !== params.split) return null;
+    if (parsed.openai?.model !== params.openai.model) return null;
+    if (parsed.openai?.temperature !== params.openai.temperature) return null;
+    if (!Array.isArray(parsed.results)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 export async function runLegalBenchEval(
   params: RunLegalBenchParams
 ): Promise<LegalBenchEvalRun> {
-  const startedAt = nowIso();
-  const runId = `legalbench-${hash({ startedAt, model: params.openai.model }).slice(0, 10)}`;
+  const resume = tryLoadResume(params);
+  const startedAt = resume?.startedAt ?? nowIso();
+  const runId =
+    resume?.runId ??
+    `legalbench-${hash({ startedAt, model: params.openai.model }).slice(0, 10)}`;
 
   const progressEvery = params.progressEvery ?? 50;
   const checkpointEvery = params.checkpointEvery ?? 250;
 
-  const results: LegalBenchExampleResult[] = [];
+  const results: LegalBenchExampleResult[] = resume ? [...resume.results] : [];
+  const completedIds = new Set(results.map(r => r.id));
   const total = params.examples.length;
   for (let i = 0; i < total; i++) {
     const ex = params.examples[i]!;
+    if (completedIds.has(ex.id)) {
+      continue;
+    }
     try {
       const resp = await openAIChatText(
         {
@@ -91,6 +127,7 @@ export async function runLegalBenchEval(
         goldAnswer: ex.goldAnswer,
         predicted: resp.content.trim(),
       });
+      completedIds.add(ex.id);
     } catch (err) {
       results.push({
         id: ex.id,
@@ -99,9 +136,10 @@ export async function runLegalBenchEval(
         predicted: null,
         error: err instanceof Error ? err.message : String(err),
       });
+      completedIds.add(ex.id);
     }
 
-    const done = i + 1;
+    const done = completedIds.size;
     if (progressEvery > 0 && (done === 1 || done % progressEvery === 0 || done === total)) {
       // eslint-disable-next-line no-console
       console.log(

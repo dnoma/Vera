@@ -49,6 +49,7 @@ type Args = {
   legalBenchPerTask: number | undefined;
   legalBenchProgressEvery: number | undefined;
   legalBenchCheckpointEvery: number | undefined;
+  legalBenchResume: boolean;
   outDir: string;
   methods: readonly EvalMethod[];
   model: string;
@@ -113,6 +114,7 @@ function parseArgs(argv: readonly string[]): Args {
   const legalBenchCheckpointEvery = args['checkpointEvery']
     ? Number(args['checkpointEvery'])
     : undefined;
+  const legalBenchResume = Boolean(args['resume'] ?? false);
   const legalBenchSplit = String(args['split'] ?? 'test');
   const legalBenchRootDir = String(args['legalBenchRootDir'] ?? 'data/legalbench');
 
@@ -131,6 +133,7 @@ function parseArgs(argv: readonly string[]): Args {
     legalBenchPerTask,
     legalBenchProgressEvery,
     legalBenchCheckpointEvery,
+    legalBenchResume,
     outDir: String(args['outDir'] ?? 'eval-output'),
     methods,
     model: String(args['model'] ?? process.env['OPENAI_MODEL'] ?? 'gpt-4.1-mini'),
@@ -671,6 +674,9 @@ async function main(): Promise<void> {
         : {}),
       ...(args.legalBenchCheckpointEvery !== undefined
         ? { checkpointEvery: args.legalBenchCheckpointEvery }
+        : {}),
+      ...(args.legalBenchResume
+        ? { resumeFrom: resolve(args.outDir, 'legalbench-partial.json') }
         : {}),
     });
 
