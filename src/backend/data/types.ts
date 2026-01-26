@@ -29,6 +29,11 @@ export interface JudgmentParagraph {
 }
 
 export interface JudgmentDocument {
+  /**
+   * Optional identifier when the document is associated with a case.
+   * Index builders should enforce presence when they need it.
+   */
+  caseId?: string;
   rawText: string;
   fullText: string;
   paragraphs: readonly JudgmentParagraph[];
@@ -39,4 +44,3 @@ export interface ParagraphHit {
   paraId: string;
   score: number;
 }
-
