@@ -1,0 +1,8 @@
+{
+  "jurisdiction": "SG",
+  "court": "SGCA",
+  "decisionDate": "2019-06-03",
+  "neutralCitations": ["[2019] SGCA 5"],
+  "partyNames": { "canonical": "Foo Pte Ltd v Bar Pte Ltd", "aliases": ["Foo v Bar"] }
+}
+

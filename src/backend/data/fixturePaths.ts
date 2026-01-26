@@ -16,3 +16,8 @@ export function backendFixturePath(relativeFixturePath: string): string {
   return candidate;
 }
 
+export function tryBackendFixturePath(relativeFixturePath: string): string | undefined {
+  const root = repoRootFromHere();
+  const candidate = resolve(root, 'src/backend/fixtures', relativeFixturePath);
+  return existsSync(candidate) ? candidate : undefined;
+}
