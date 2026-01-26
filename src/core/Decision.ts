@@ -17,6 +17,21 @@ export const DEFAULT_THRESHOLD = 0.5;
  */
 export const DEFAULT_INDETERMINATE_ZONE = 0.1;
 
+export type DecisionLabelingOptions = {
+  /**
+   * Decision threshold used for labeling.
+   * - strength > threshold -> 'supported'
+   * - strength <= threshold -> 'contested'
+   *
+   * For three-way labeling, this is the center point of the indeterminate zone.
+   */
+  readonly threshold?: number;
+  /** Whether to use three-way labeling with an indeterminate zone. */
+  readonly useZone?: boolean;
+  /** Width of indeterminate zone (only used when useZone=true). */
+  readonly indeterminateZone?: number;
+};
+
 /**
  * Computes a decision label from a final strength value.
  *
@@ -60,9 +75,22 @@ export function computeLabelWithZone(
   if (finalStrength < 0 || finalStrength > 1) {
     throw new Error(`finalStrength must be in [0,1], got ${finalStrength}`);
   }
+  if (threshold < 0 || threshold > 1) {
+    throw new Error(`threshold must be in [0,1], got ${threshold}`);
+  }
+  if (indeterminateZone < 0 || indeterminateZone > 1) {
+    throw new Error(
+      `indeterminateZone must be in [0,1], got ${indeterminateZone}`
+    );
+  }
 
   const upperBound = threshold + indeterminateZone / 2;
   const lowerBound = threshold - indeterminateZone / 2;
+  if (upperBound > 1 || lowerBound < 0) {
+    throw new Error(
+      `indeterminateZone too wide for threshold: threshold=${threshold} zone=${indeterminateZone}`
+    );
+  }
 
   if (finalStrength > upperBound) {
     return 'supported';
@@ -134,11 +162,36 @@ export function createDecision(
 export function createDecisionFromStrength(
   finalStrength: number,
   claimStatement: string,
-  threshold: number = DEFAULT_THRESHOLD,
-  useZone: boolean = false
+  threshold: number,
+  useZone?: boolean
+): Decision;
+export function createDecisionFromStrength(
+  finalStrength: number,
+  claimStatement: string,
+  options?: DecisionLabelingOptions
+): Decision;
+export function createDecisionFromStrength(
+  finalStrength: number,
+  claimStatement: string,
+  thresholdOrOptions: number | DecisionLabelingOptions = DEFAULT_THRESHOLD,
+  useZoneArg: boolean = false
 ): Decision {
+  const { threshold, useZone, indeterminateZone } =
+    typeof thresholdOrOptions === 'number'
+      ? {
+          threshold: thresholdOrOptions,
+          useZone: useZoneArg,
+          indeterminateZone: DEFAULT_INDETERMINATE_ZONE,
+        }
+      : {
+          threshold: thresholdOrOptions.threshold ?? DEFAULT_THRESHOLD,
+          useZone: thresholdOrOptions.useZone ?? false,
+          indeterminateZone:
+            thresholdOrOptions.indeterminateZone ?? DEFAULT_INDETERMINATE_ZONE,
+        };
+
   const label = useZone
-    ? computeLabelWithZone(finalStrength, threshold)
+    ? computeLabelWithZone(finalStrength, threshold, indeterminateZone)
     : computeLabel(finalStrength, threshold);
 
   const conclusion = generateConclusion(label, claimStatement);
