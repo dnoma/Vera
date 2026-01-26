@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "backend-api/citations-resolve.response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "candidates", "confidence", "notes"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["resolved", "ambiguous", "not_found", "error"]
+    },
+    "caseId": { "type": "string", "minLength": 1 },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["caseId", "label"],
+        "properties": {
+          "caseId": { "type": "string", "minLength": 1 },
+          "label": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "notes": { "type": "array", "items": { "type": "string" } }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "resolved" } } },
+      "then": { "required": ["caseId"] }
+    }
+  ]
+}
+

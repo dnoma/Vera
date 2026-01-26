@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "backend-api/propositions-verify.response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "verdict",
+    "supportSpans",
+    "counterSpans",
+    "confidence",
+    "groundingOk"
+  ],
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": ["supported", "contradicted", "needs_context", "unknown"]
+    },
+    "supportSpans": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/span" }
+    },
+    "counterSpans": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/span" }
+    },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "groundingOk": { "type": "boolean" }
+  },
+  "$defs": {
+    "span": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["caseId", "paraId", "start", "end", "text"],
+      "properties": {
+        "caseId": { "type": "string", "minLength": 1 },
+        "paraId": { "type": "string", "minLength": 1 },
+        "start": { "type": "integer", "minimum": 0 },
+        "end": { "type": "integer", "minimum": 0 },
+        "text": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "groundingOk": { "const": false } } },
+      "then": { "properties": { "verdict": { "const": "needs_context" } } }
+    }
+  ]
+}
+

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "backend-api/quotes-verify.request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["caseId", "quote"],
+  "properties": {
+    "caseId": { "type": "string", "minLength": 1 },
+    "quote": { "type": "string", "minLength": 1 },
+    "paraHint": { "type": "string", "minLength": 1 }
+  }
+}
+

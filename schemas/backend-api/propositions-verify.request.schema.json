@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "backend-api/propositions-verify.request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["proposition", "evidence"],
+  "properties": {
+    "proposition": { "type": "string", "minLength": 1 },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["caseId", "paraId", "text"],
+        "properties": {
+          "caseId": { "type": "string", "minLength": 1 },
+          "paraId": { "type": "string", "minLength": 1 },
+          "text": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}
+

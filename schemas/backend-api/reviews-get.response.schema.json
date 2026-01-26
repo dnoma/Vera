@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "backend-api/reviews-get.response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reviewId", "state", "packetId", "decision", "submittedAt"],
+  "properties": {
+    "reviewId": { "type": "string", "minLength": 1 },
+    "state": {
+      "type": "string",
+      "enum": ["draft", "approved", "rejected", "needs_more_evidence"]
+    },
+    "packetId": { "type": "string", "minLength": 1 },
+    "decision": {
+      "type": "string",
+      "enum": ["approved", "rejected", "needs_more_evidence"]
+    },
+    "notes": { "type": "string" },
+    "submittedAt": { "type": "string", "format": "date-time" }
+  }
+}
+

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "backend-api/reviews-submit.request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["packetId", "decision"],
+  "properties": {
+    "packetId": { "type": "string", "minLength": 1 },
+    "decision": {
+      "type": "string",
+      "enum": ["approved", "rejected", "needs_more_evidence"]
+    },
+    "notes": { "type": "string" }
+  }
+}
+
