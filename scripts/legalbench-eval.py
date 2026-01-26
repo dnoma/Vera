@@ -141,6 +141,7 @@ def evaluate_task(
             return TaskResult(task=task, n_test=0, n_pred=0, coverage=0.0, score=None, note="empty test.tsv")
 
         answer_col = pick_answer_column(reader.fieldnames)
+        has_index_col = "index" in reader.fieldnames
         answers: List[str] = []
         generations: List[str] = []
         n_pred = 0
@@ -148,7 +149,12 @@ def evaluate_task(
         for idx, row in enumerate(reader):
             ans = (row.get(answer_col) or "").strip()
             answers.append(ans)
-            pred = preds_by_id.get(idx)
+            example_id = idx
+            if has_index_col:
+                raw_idx = (row.get("index") or "").strip()
+                if raw_idx.isdigit():
+                    example_id = int(raw_idx)
+            pred = preds_by_id.get(example_id)
             if pred is None:
                 generations.append("")
             else:
