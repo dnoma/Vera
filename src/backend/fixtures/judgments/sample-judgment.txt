@@ -1,0 +1,11 @@
+IN THE HIGH COURT OF THE REPUBLIC OF SINGAPORE
+
+[1]  This is the first paragraph.
+It wraps   across lines.
+
+(2) Second paragraph	with a tab.
+
+3.   Third paragraph includes (parentheses) and punctuation.
+
+[4] Fourth paragraph has  multiple    spaces.
+

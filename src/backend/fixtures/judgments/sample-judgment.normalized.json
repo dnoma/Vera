@@ -1,0 +1,39 @@
+{
+  "rawText": "IN THE HIGH COURT OF THE REPUBLIC OF SINGAPORE\n\n[1]  This is the first paragraph.\nIt wraps   across lines.\n\n(2) Second paragraph\twith a tab.\n\n3.   Third paragraph includes (parentheses) and punctuation.\n\n[4] Fourth paragraph has  multiple    spaces.\n\n",
+  "fullText": "IN THE HIGH COURT OF THE REPUBLIC OF SINGAPORE\n\nThis is the first paragraph. It wraps across lines.\n\nSecond paragraph with a tab.\n\nThird paragraph includes (parentheses) and punctuation.\n\nFourth paragraph has multiple spaces.",
+  "paragraphs": [
+    {
+      "paraId": "preamble",
+      "text": "IN THE HIGH COURT OF THE REPUBLIC OF SINGAPORE",
+      "isHeading": true,
+      "charStart": 0,
+      "charEnd": 46
+    },
+    {
+      "paraId": "1",
+      "text": "This is the first paragraph. It wraps across lines.",
+      "charStart": 48,
+      "charEnd": 99
+    },
+    {
+      "paraId": "2",
+      "text": "Second paragraph with a tab.",
+      "charStart": 101,
+      "charEnd": 129
+    },
+    {
+      "paraId": "3",
+      "text": "Third paragraph includes (parentheses) and punctuation.",
+      "charStart": 131,
+      "charEnd": 186
+    },
+    {
+      "paraId": "4",
+      "text": "Fourth paragraph has multiple spaces.",
+      "charStart": 188,
+      "charEnd": 225
+    }
+  ],
+  "hash": "91cb4e70e99535a58bbc4c246cb206339ab9e258997264d6596798ab288689ea"
+}
+
