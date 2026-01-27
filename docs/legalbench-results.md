@@ -26,6 +26,12 @@ No runs yet. Generate a predictions file, then run:
 
 By default, the evaluator scores only tasks present in the predictions file. To force scoring every task (treating missing predictions as empty strings), add `--all-tasks`.
 
+## Comparing Vera vs a baseline (win-rate, deltas, CI)
+
+If you generate two prediction files for the same tasks/split (e.g. Vera vs one-shot RAG), you can append a comparison run:
+
+`data/legalbench/.venv/bin/python scripts/legalbench-eval.py --predictions vera.jsonl --compare baseline.jsonl --report docs/legalbench-results.md --run-name "vera vs baseline"`
+
 
 ### Run 2026-01-26 09:07:55Z — empty-baseline
 
@@ -545,3 +551,26 @@ By default, the evaluator scores only tasks present in the predictions file. To 
 | textualism_tool_plain | 165 | 0 | 0.000 | 0.0000 |  |
 | ucc_v_common_law | 94 | 0 | 0.000 | 0.0000 |  |
 | unfair_tos | 3813 | 0 | 0.000 | 0.0000 |  |
+
+### Run 2026-01-26 14:57:19Z — vera-tier1:gpt-4.1-mini
+
+- Predictions: `eval-output/predictions.jsonl`
+- Tasks: `12`
+- Weighted coverage: `0.9996`
+- Macro avg (scored tasks): `0.7063`
+- Weighted avg (scored tasks): `0.8665`
+
+| task | n_test | n_pred | coverage | score | note |
+|---|---:|---:|---:|---:|---|
+| abercrombie | 95 | 95 | 1.000 | 0.7474 |  |
+| citation_prediction_classification | 108 | 108 | 1.000 | 0.6667 |  |
+| citation_prediction_open | 53 | 53 | 1.000 | 0.0755 |  |
+| contract_nli_confidentiality_of_agreement | 82 | 82 | 1.000 | 0.9268 |  |
+| contract_nli_no_licensing | 162 | 162 | 1.000 | 0.9195 |  |
+| definition_classification | 1337 | 1337 | 1.000 | 0.9029 |  |
+| definition_extraction | 687 | 685 | 0.997 | 0.8355 |  |
+| hearsay | 94 | 94 | 1.000 | 0.7161 |  |
+| overruling | 2394 | 2394 | 1.000 | 0.9259 |  |
+| sara_entailment | 272 | 272 | 1.000 | 0.7904 |  |
+| sara_numeric | 96 | 96 | 1.000 | 0.0312 |  |
+| ucc_v_common_law | 94 | 94 | 1.000 | 0.9375 |  |
