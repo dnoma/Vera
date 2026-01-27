@@ -220,7 +220,56 @@ OPENAI_API_KEY=... node dist/eval/run.js \
   --model gpt-4.1-mini \
   --temperature 0 \
   --progressEvery 50 \
-  --checkpointEvery 200
+  --checkpointEvery 200 \
+  --promptMode few-shot
+```
+
+**Baselines / controls**
+
+One-shot RAG control (retrieve 1 example from `train.tsv` per test case; deterministic):
+
+```bash
+OPENAI_API_KEY=... node dist/eval/run.js \
+  --dataset legalbench \
+  --legalBenchRootDir data/legalbench \
+  --split test \
+  --tasks abercrombie,hearsay,overruling,ucc_v_common_law,definition_extraction,definition_classification,citation_prediction_classification,citation_prediction_open,contract_nli_confidentiality_of_agreement,contract_nli_no_licensing,sara_numeric,sara_entailment \
+  --outDir eval-output \
+  --model gpt-4.1-mini \
+  --temperature 0 \
+  --progressEvery 50 \
+  --checkpointEvery 200 \
+  --promptMode one-shot-rag
+```
+
+**Resume long runs**
+
+If a run is interrupted, resume from `eval-output/legalbench-partial.json`:
+
+```bash
+OPENAI_API_KEY=... node dist/eval/run.js \
+  --dataset legalbench \
+  --legalBenchRootDir data/legalbench \
+  --split test \
+  --tasks abercrombie,hearsay,overruling,ucc_v_common_law,definition_extraction,definition_classification,citation_prediction_classification,citation_prediction_open,contract_nli_confidentiality_of_agreement,contract_nli_no_licensing,sara_numeric,sara_entailment \
+  --outDir eval-output \
+  --model gpt-4.1-mini \
+  --temperature 0 \
+  --progressEvery 50 \
+  --checkpointEvery 200 \
+  --resume
+```
+
+**Compare Vera vs baseline (win-rate + deltas)**
+
+After you convert each run to JSONL (see `docs/legalbench-results.md`), append a comparison table:
+
+```bash
+data/legalbench/.venv/bin/python scripts/legalbench-eval.py \
+  --predictions vera.jsonl \
+  --compare baseline.jsonl \
+  --report docs/legalbench-results.md \
+  --run-name "vera vs one-shot-rag"
 ```
 
 **Latest Tier 1 results (gpt-4.1-mini, temperature=0)**
