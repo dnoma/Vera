@@ -50,6 +50,7 @@ type Args = {
   legalBenchProgressEvery: number | undefined;
   legalBenchCheckpointEvery: number | undefined;
   legalBenchResume: boolean;
+  legalBenchPromptMode: 'few-shot' | 'one-shot-rag';
   outDir: string;
   methods: readonly EvalMethod[];
   model: string;
@@ -115,6 +116,10 @@ function parseArgs(argv: readonly string[]): Args {
     ? Number(args['checkpointEvery'])
     : undefined;
   const legalBenchResume = Boolean(args['resume'] ?? false);
+  const legalBenchPromptMode =
+    String(args['promptMode'] ?? 'few-shot') === 'one-shot-rag'
+      ? 'one-shot-rag'
+      : 'few-shot';
   const legalBenchSplit = String(args['split'] ?? 'test');
   const legalBenchRootDir = String(args['legalBenchRootDir'] ?? 'data/legalbench');
 
@@ -134,6 +139,7 @@ function parseArgs(argv: readonly string[]): Args {
     legalBenchProgressEvery,
     legalBenchCheckpointEvery,
     legalBenchResume,
+    legalBenchPromptMode,
     outDir: String(args['outDir'] ?? 'eval-output'),
     methods,
     model: String(args['model'] ?? process.env['OPENAI_MODEL'] ?? 'gpt-4.1-mini'),
@@ -678,6 +684,7 @@ async function main(): Promise<void> {
       ...(args.legalBenchResume
         ? { resumeFrom: resolve(args.outDir, 'legalbench-partial.json') }
         : {}),
+      promptMode: args.legalBenchPromptMode,
     });
 
     mkdirSync(args.outDir, { recursive: true });

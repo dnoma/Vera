@@ -5,6 +5,12 @@ import type { OpenAIChatParams } from '../types.js';
 import { openAIChatText } from '../openai/client.js';
 import type { LegalBenchExample } from './types.js';
 import { evaluateLegalBenchTask, type LegalBenchMetric } from './evaluation.js';
+import {
+  buildQuestionText,
+  formatOneShotDemo,
+  loadOneShotRagIndex,
+  selectBestOneShotDemo,
+} from './oneShotRag.js';
 
 export type LegalBenchExampleResult = {
   readonly id: string;
@@ -12,6 +18,7 @@ export type LegalBenchExampleResult = {
   readonly goldAnswer: string;
   readonly predicted: string | null;
   readonly error?: string;
+  readonly retrieval?: { readonly trainId: string; readonly score: number };
 };
 
 export type LegalBenchTaskSummary = {
@@ -31,6 +38,7 @@ export type LegalBenchEvalRun = {
   readonly datasetPath: string;
   readonly split: string;
   readonly tasks: readonly string[];
+  readonly promptMode: 'few-shot' | 'one-shot-rag';
   readonly openai: OpenAIChatParams;
   readonly results: readonly LegalBenchExampleResult[];
   readonly taskSummaries: readonly LegalBenchTaskSummary[];
@@ -51,6 +59,7 @@ type RunLegalBenchParams = {
   readonly progressEvery?: number;
   readonly checkpointEvery?: number;
   readonly resumeFrom?: string;
+  readonly promptMode?: 'few-shot' | 'one-shot-rag';
 };
 
 function nowIso(): string {
@@ -96,6 +105,8 @@ export async function runLegalBenchEval(
 
   const progressEvery = params.progressEvery ?? 50;
   const checkpointEvery = params.checkpointEvery ?? 250;
+  const promptMode = params.promptMode ?? 'few-shot';
+  const ragIndexByTask = new Map<string, ReturnType<typeof loadOneShotRagIndex>>();
 
   const results: LegalBenchExampleResult[] = resume ? [...resume.results] : [];
   const completedIds = new Set(results.map(r => r.id));
@@ -104,6 +115,22 @@ export async function runLegalBenchEval(
     const ex = params.examples[i]!;
     if (completedIds.has(ex.id)) {
       continue;
+    }
+    let retrieval: { trainId: string; score: number } | undefined;
+    let prompt = ex.prompt;
+    if (promptMode === 'one-shot-rag') {
+      if (!ragIndexByTask.has(ex.task)) {
+        ragIndexByTask.set(ex.task, loadOneShotRagIndex(params.datasetPath, ex.task));
+      }
+      const idx = ragIndexByTask.get(ex.task) ?? null;
+      if (idx) {
+        const queryText = buildQuestionText({ text: ex.text, question: ex.question });
+        const demo = selectBestOneShotDemo(idx, queryText);
+        if (demo) {
+          retrieval = { trainId: demo.trainId, score: demo.score };
+          prompt = `${formatOneShotDemo(demo)}\n\n${ex.prompt}`;
+        }
+      }
     }
     try {
       const resp = await openAIChatText(
@@ -116,7 +143,7 @@ export async function runLegalBenchEval(
               content:
                 'Answer the final question. Reply with only the answer text (no JSON, no markdown).',
             },
-            { role: 'user', content: ex.prompt },
+            { role: 'user', content: prompt },
           ],
         },
         params.apiKey
@@ -126,6 +153,7 @@ export async function runLegalBenchEval(
         task: ex.task,
         goldAnswer: ex.goldAnswer,
         predicted: resp.content.trim(),
+        ...(retrieval ? { retrieval } : {}),
       });
       completedIds.add(ex.id);
     } catch (err) {
@@ -135,6 +163,7 @@ export async function runLegalBenchEval(
         goldAnswer: ex.goldAnswer,
         predicted: null,
         error: err instanceof Error ? err.message : String(err),
+        ...(retrieval ? { retrieval } : {}),
       });
       completedIds.add(ex.id);
     }
@@ -224,6 +253,7 @@ export async function runLegalBenchEval(
     datasetPath: params.datasetPath,
     split: params.split,
     tasks: [...byTask.keys()].sort((a, b) => a.localeCompare(b)),
+    promptMode,
     openai: params.openai,
     results,
     taskSummaries,
