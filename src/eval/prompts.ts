@@ -1,4 +1,6 @@
 import type { CuadExample } from './types.js';
+import type { LegalBenchExample } from './legalbench/types.js';
+import type { VerifiedEvidence } from './corag/types.js';
 
 function truncate(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text;
@@ -78,6 +80,89 @@ export function qbafPrompt(example: CuadExample, sourceId: string): { system: st
     '',
     'Contract text:',
     truncate(example.contractText, 12000),
+  ].join('\n');
+
+  return { system, user };
+}
+
+export function evidenceExtractionPrompt(
+  example: CuadExample | LegalBenchExample
+): { system: string; user: string } {
+  const text = 'contractText' in example ? example.contractText : example.text;
+  const question = example.question || ('task' in example ? example.task : 'Question');
+
+  const system = [
+    'You are a legal evidence extraction assistant.',
+    'Extract 3-5 evidence passages from the text that are relevant to answering the question.',
+    'Return valid JSON only (no markdown, no prose).',
+    '',
+    'JSON schema:',
+    '{',
+    '  "passages": [',
+    '    {',
+    '      "text": string,       // Exact quote from the source text',
+    '      "stance": "supporting" | "opposing" | "neutral",',
+    '      "strength": "strong" | "moderate" | "weak",',
+    '      "reason": string      // Brief explanation of relevance',
+    '    }',
+    '  ]',
+    '}',
+    '',
+    'Rules:',
+    '- Each passage text MUST be an exact quote from the source (verbatim substring).',
+    '- Include both supporting AND opposing evidence if present.',
+    '- "stance" indicates whether the passage supports or opposes a "yes" answer.',
+    '- Keep passages short and directly relevant.',
+  ].join('\n');
+
+  const user = [
+    `Question: ${question}`,
+    '',
+    'Source text:',
+    truncate(text, 12000),
+  ].join('\n');
+
+  return { system, user };
+}
+
+export function groundedGraphPrompt(
+  example: CuadExample | LegalBenchExample,
+  sourceId: string,
+  evidencePassages: readonly VerifiedEvidence[]
+): { system: string; user: string } {
+  const category = 'category' in example ? example.category : example.task;
+  const question = example.question || category;
+  const system = [
+    'You are constructing a QBAF argument graph grounded ONLY in provided verified evidence passages.',
+    'Return valid JSON only (no markdown, no prose).',
+    '',
+    'You must output an object with:',
+    '{',
+    '  "framework": { "rootClaimId": "arg-0000", "arguments": [...], "relations": [...] },',
+    '  "evidence": [{ "argumentId": "arg-0001", "evidenceSpans": [{"start": number, "end": number, "reason": string}] }]',
+    '}',
+    '',
+    'Rules:',
+    `- Use only sourceRefs ["${sourceId}"] or [].`,
+    '- Root argument baseScore MUST be exactly 0.5.',
+    '- Keep it a tree: each non-root argument has exactly ONE outgoing relation.',
+    '- Include at least one attack relation into the root.',
+    '- Evidence spans must be exact substrings of the provided source text.',
+  ].join('\n');
+
+  const evidenceText = evidencePassages
+    .map((e, i) => [
+      `[#${i + 1}] stance=${e.stance} strength=${e.strength}`,
+      e.text,
+    ].join('\n'))
+    .join('\n\n');
+
+  const user = [
+    `Question: ${question}`,
+    `Category: ${category}`,
+    '',
+    'Verified evidence passages (verbatim):',
+    evidenceText,
   ].join('\n');
 
   return { system, user };

@@ -17,7 +17,7 @@ export type CuadExample = CuadLabel & {
   readonly goldSpans: readonly { readonly start: number; readonly end: number }[];
 };
 
-export type EvalMethod = 'baseline' | 'qbaf';
+export type EvalMethod = 'baseline' | 'qbaf' | 'corag';
 
 export type OpenAIChatParams = {
   readonly model: string;

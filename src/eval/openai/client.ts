@@ -50,3 +50,32 @@ export async function openAIChatJson(
   return { content };
 }
 
+export async function openAIChatText(
+  request: OpenAIChatRequest,
+  apiKey: string
+): Promise<OpenAIChatResponse> {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: request.model,
+      temperature: request.temperature,
+      messages: request.messages,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`OpenAI error ${response.status}: ${text}`);
+  }
+
+  const json = (await response.json()) as ChatCompletionsResponse;
+  const content = json.choices[0]?.message?.content;
+  if (!content) {
+    throw new Error('OpenAI response missing content');
+  }
+  return { content };
+}
