@@ -5,6 +5,7 @@ import type { OpenAIChatParams } from '../types.js';
 import { openAIChatText } from '../openai/client.js';
 import type { LegalBenchExample } from './types.js';
 import { evaluateLegalBenchTask, type LegalBenchMetric } from './evaluation.js';
+import { normalizeLegalBenchOutput } from './normalize.js';
 import {
   buildQuestionText,
   formatOneShotDemo,
@@ -14,9 +15,11 @@ import {
 
 export type LegalBenchExampleResult = {
   readonly id: string;
+  readonly index: number;
   readonly task: string;
   readonly goldAnswer: string;
   readonly predicted: string | null;
+  readonly predictedRaw?: string;
   readonly error?: string;
   readonly retrieval?: { readonly trainId: string; readonly score: number };
 };
@@ -39,6 +42,8 @@ export type LegalBenchEvalRun = {
   readonly split: string;
   readonly tasks: readonly string[];
   readonly promptMode: 'few-shot' | 'one-shot-rag';
+  readonly normalizeOutputs: boolean;
+  readonly concurrency: number;
   readonly openai: OpenAIChatParams;
   readonly results: readonly LegalBenchExampleResult[];
   readonly taskSummaries: readonly LegalBenchTaskSummary[];
@@ -60,6 +65,8 @@ type RunLegalBenchParams = {
   readonly checkpointEvery?: number;
   readonly resumeFrom?: string;
   readonly promptMode?: 'few-shot' | 'one-shot-rag';
+  readonly normalizeOutputs?: boolean;
+  readonly concurrency?: number;
 };
 
 function nowIso(): string {
@@ -72,6 +79,7 @@ type PartialRun = {
   readonly datasetPath: string;
   readonly split: string;
   readonly openai: OpenAIChatParams;
+  readonly normalizeOutputs?: boolean;
   readonly results: readonly LegalBenchExampleResult[];
 };
 
@@ -87,6 +95,12 @@ function tryLoadResume(params: RunLegalBenchParams): PartialRun | null {
     if (parsed.split !== params.split) return null;
     if (parsed.openai?.model !== params.openai.model) return null;
     if (parsed.openai?.temperature !== params.openai.temperature) return null;
+    if (
+      parsed.normalizeOutputs !== undefined &&
+      parsed.normalizeOutputs !== (params.normalizeOutputs ?? false)
+    ) {
+      return null;
+    }
     if (!Array.isArray(parsed.results)) return null;
     return parsed;
   } catch {
@@ -106,16 +120,68 @@ export async function runLegalBenchEval(
   const progressEvery = params.progressEvery ?? 50;
   const checkpointEvery = params.checkpointEvery ?? 250;
   const promptMode = params.promptMode ?? 'few-shot';
+  const normalizeOutputs = params.normalizeOutputs ?? false;
+  const concurrency = Math.max(1, Math.floor(params.concurrency ?? 1));
   const ragIndexByTask = new Map<string, ReturnType<typeof loadOneShotRagIndex>>();
 
-  const results: LegalBenchExampleResult[] = resume ? [...resume.results] : [];
-  const completedIds = new Set(results.map(r => r.id));
-  const total = params.examples.length;
-  for (let i = 0; i < total; i++) {
-    const ex = params.examples[i]!;
-    if (completedIds.has(ex.id)) {
-      continue;
+  const exampleById = new Map(params.examples.map(e => [e.id, e]));
+  const resultsById = new Map<string, LegalBenchExampleResult>();
+  const coerceIndex = (id: string, fallback: number): number => {
+    const fromId = Number(id.split('-').slice(-1)[0]);
+    if (Number.isFinite(fromId)) return fromId;
+    return fallback;
+  };
+  if (resume?.results) {
+    for (const r of resume.results) {
+      const ex = exampleById.get(r.id);
+      const index = typeof r.index === 'number' ? r.index : coerceIndex(r.id, ex?.index ?? 0);
+      resultsById.set(r.id, { ...r, index });
     }
+  }
+  const completedIds = new Set(resultsById.keys());
+  const total = params.examples.length;
+  let predictedCount = [...resultsById.values()].filter(r => r.predicted !== null).length;
+  let completedCount = completedIds.size;
+  const pending = params.examples.filter(ex => !completedIds.has(ex.id));
+  let nextIndex = 0;
+
+  const orderedResults = (): LegalBenchExampleResult[] =>
+    params.examples
+      .map(ex => resultsById.get(ex.id))
+      .filter((r): r is LegalBenchExampleResult => Boolean(r));
+
+  const isRetryableError = (err: unknown): boolean => {
+    const msg = err instanceof Error ? err.message : String(err);
+    return (
+      /OpenAI error (429|500|502|503|504)/.test(msg) ||
+      /ECONNRESET|ETIMEDOUT|ENOTFOUND|fetch failed|rate limit/i.test(msg)
+    );
+  };
+
+  const sleep = (ms: number): Promise<void> =>
+    new Promise(resolve => {
+      setTimeout(resolve, ms);
+    });
+
+  const withRetries = async <T>(fn: () => Promise<T>): Promise<T> => {
+    const maxAttempts = 5;
+    let attempt = 0;
+    while (true) {
+      attempt++;
+      try {
+        return await fn();
+      } catch (err) {
+        if (!isRetryableError(err) || attempt >= maxAttempts) throw err;
+        const base = 500;
+        const max = 8000;
+        const jitter = Math.random() * 200;
+        const delay = Math.min(max, base * 2 ** (attempt - 1)) + jitter;
+        await sleep(delay);
+      }
+    }
+  };
+
+  const runExample = async (ex: LegalBenchExample): Promise<LegalBenchExampleResult> => {
     let retrieval: { trainId: string; score: number } | undefined;
     let prompt = ex.prompt;
     if (promptMode === 'one-shot-rag') {
@@ -132,54 +198,69 @@ export async function runLegalBenchEval(
         }
       }
     }
+
     try {
-      const resp = await openAIChatText(
-        {
-          model: params.openai.model,
-          temperature: params.openai.temperature,
-          messages: [
-            {
-              role: 'system',
-              content:
-                'Answer the final question. Reply with only the answer text (no JSON, no markdown).',
-            },
-            { role: 'user', content: prompt },
-          ],
-        },
-        params.apiKey
+      const resp = await withRetries(() =>
+        openAIChatText(
+          {
+            model: params.openai.model,
+            temperature: params.openai.temperature,
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'Answer the final question. Reply with only the answer text (no JSON, no markdown).',
+              },
+              { role: 'user', content: prompt },
+            ],
+          },
+          params.apiKey
+        )
       );
-      results.push({
+      const raw = resp.content.trim();
+      const normalized = normalizeOutputs ? normalizeLegalBenchOutput(ex.task, raw) : raw;
+      return {
         id: ex.id,
+        index: ex.index,
         task: ex.task,
         goldAnswer: ex.goldAnswer,
-        predicted: resp.content.trim(),
+        predicted: normalized,
+        ...(normalizeOutputs ? { predictedRaw: raw } : {}),
         ...(retrieval ? { retrieval } : {}),
-      });
-      completedIds.add(ex.id);
+      };
     } catch (err) {
-      results.push({
+      return {
         id: ex.id,
+        index: ex.index,
         task: ex.task,
         goldAnswer: ex.goldAnswer,
         predicted: null,
         error: err instanceof Error ? err.message : String(err),
         ...(retrieval ? { retrieval } : {}),
-      });
-      completedIds.add(ex.id);
+      };
     }
+  };
 
-    const done = completedIds.size;
-    if (progressEvery > 0 && (done === 1 || done % progressEvery === 0 || done === total)) {
+  const onComplete = (result: LegalBenchExampleResult): void => {
+    resultsById.set(result.id, result);
+    completedIds.add(result.id);
+    completedCount += 1;
+    if (result.predicted !== null) predictedCount += 1;
+
+    if (
+      progressEvery > 0 &&
+      (completedCount === 1 || completedCount % progressEvery === 0 || completedCount === total)
+    ) {
       // eslint-disable-next-line no-console
       console.log(
         JSON.stringify(
           {
             event: 'legalbench.progress',
             runId,
-            done,
+            done: completedCount,
             total,
-            pct: Number(((done / total) * 100).toFixed(2)),
-            predicted: results.filter(r => r.predicted !== null).length,
+            pct: Number(((completedCount / total) * 100).toFixed(2)),
+            predicted: predictedCount,
           },
           null,
           0
@@ -187,7 +268,7 @@ export async function runLegalBenchEval(
       );
     }
 
-    if (checkpointEvery > 0 && done % checkpointEvery === 0) {
+    if (checkpointEvery > 0 && completedCount % checkpointEvery === 0) {
       mkdirSync(params.outDir, { recursive: true });
       const partial = {
         runId,
@@ -195,7 +276,8 @@ export async function runLegalBenchEval(
         datasetPath: params.datasetPath,
         split: params.split,
         openai: params.openai,
-        results,
+        normalizeOutputs,
+        results: orderedResults(),
       };
       writeFileSync(
         resolve(params.outDir, 'legalbench-partial.json'),
@@ -203,7 +285,22 @@ export async function runLegalBenchEval(
         'utf-8'
       );
     }
-  }
+  };
+
+  const worker = async (): Promise<void> => {
+    while (true) {
+      const ex = pending[nextIndex];
+      if (!ex) return;
+      nextIndex += 1;
+      const result = await runExample(ex);
+      onComplete(result);
+    }
+  };
+
+  const workers = Array.from({ length: Math.min(concurrency, pending.length) }, () => worker());
+  await Promise.all(workers);
+
+  const results = orderedResults();
 
   const byTask = new Map<string, LegalBenchExampleResult[]>();
   for (const r of results) {
@@ -254,6 +351,8 @@ export async function runLegalBenchEval(
     split: params.split,
     tasks: [...byTask.keys()].sort((a, b) => a.localeCompare(b)),
     promptMode,
+    normalizeOutputs,
+    concurrency,
     openai: params.openai,
     results,
     taskSummaries,

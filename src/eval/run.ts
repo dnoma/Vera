@@ -16,8 +16,10 @@ import type {
 import { loadCuadExamples, listCuadCategories } from './cuad/loadCuad.js';
 import { loadLegalBenchExamples } from './legalbench/loadLegalBench.js';
 import type { LegalBenchReasoningType, LegalBenchTaskType } from './legalbench/types.js';
-import { runLegalBenchEval } from './legalbench/runner.js';
+import { runLegalBenchEval, type LegalBenchEvalRun } from './legalbench/runner.js';
 import { legalBenchMarkdownReport } from './legalbench/report.js';
+import { writeLegalBenchPredictions } from './legalbench/predictions.js';
+import { writeLegalBenchErrorPack } from './legalbench/errorPack.js';
 import { computeCacheKey, readCache, writeCache } from './cache.js';
 import { openAIChatJson } from './openai/client.js';
 import { bestSpanTokenF1, clamp01, spanIsValid, safeJsonParse } from './metrics.js';
@@ -51,6 +53,15 @@ type Args = {
   legalBenchCheckpointEvery: number | undefined;
   legalBenchResume: boolean;
   legalBenchPromptMode: 'few-shot' | 'one-shot-rag';
+  legalBenchNormalizeOutputs: boolean;
+  legalBenchConcurrency: number;
+  legalBenchWritePredictions: boolean;
+  legalBenchErrorPack: boolean;
+  legalBenchErrorPackOnly: boolean;
+  legalBenchErrorPackTopN: number;
+  legalBenchErrorPackSeed: string;
+  legalBenchErrorPackIncludePrompt: boolean;
+  legalBenchErrorPackFrom: string | undefined;
   outDir: string;
   methods: readonly EvalMethod[];
   model: string;
@@ -85,6 +96,15 @@ function parseArgs(argv: readonly string[]): Args {
       }
     }
   }
+
+  const parseBool = (value: string | boolean | undefined, defaultValue: boolean): boolean => {
+    if (value === undefined) return defaultValue;
+    if (typeof value === 'boolean') return value;
+    const normalized = value.toLowerCase().trim();
+    if (normalized === 'true' || normalized === '1' || normalized === 'yes') return true;
+    if (normalized === 'false' || normalized === '0' || normalized === 'no') return false;
+    return defaultValue;
+  };
 
   const methodsRaw = String(args['methods'] ?? 'both');
   const methods: EvalMethod[] =
@@ -122,6 +142,25 @@ function parseArgs(argv: readonly string[]): Args {
       : 'few-shot';
   const legalBenchSplit = String(args['split'] ?? 'test');
   const legalBenchRootDir = String(args['legalBenchRootDir'] ?? 'data/legalbench');
+  const legalBenchNormalizeOutputs = parseBool(args['normalizeOutputs'], false);
+  const concurrencyRaw = args['concurrency'];
+  const concurrencyValue =
+    typeof concurrencyRaw === 'boolean' ? 1 : Number(concurrencyRaw ?? 1);
+  const legalBenchConcurrency = Number.isFinite(concurrencyValue)
+    ? Math.max(1, Math.floor(concurrencyValue))
+    : 1;
+  const legalBenchWritePredictions = parseBool(args['predictionsJsonl'], false);
+  const legalBenchErrorPack = parseBool(args['errorPack'], false);
+  const legalBenchErrorPackOnly = parseBool(args['errorPackOnly'], false);
+  const errorPackTopN = Number(args['errorPackTopN'] ?? 10);
+  const legalBenchErrorPackTopN = Number.isFinite(errorPackTopN)
+    ? Math.max(1, Math.floor(errorPackTopN))
+    : 10;
+  const legalBenchErrorPackSeed = String(args['errorPackSeed'] ?? 'legalbench-error-pack');
+  const legalBenchErrorPackIncludePrompt = parseBool(args['errorPackIncludePrompt'], false);
+  const legalBenchErrorPackFrom = args['errorPackFrom']
+    ? String(args['errorPackFrom'])
+    : undefined;
 
   const stratified = Boolean(args['stratified'] ?? false);
   const contractLimit = Number(args['contractLimit'] ?? 20);
@@ -140,6 +179,15 @@ function parseArgs(argv: readonly string[]): Args {
     legalBenchCheckpointEvery,
     legalBenchResume,
     legalBenchPromptMode,
+    legalBenchNormalizeOutputs,
+    legalBenchConcurrency,
+    legalBenchWritePredictions,
+    legalBenchErrorPack,
+    legalBenchErrorPackOnly,
+    legalBenchErrorPackTopN,
+    legalBenchErrorPackSeed,
+    legalBenchErrorPackIncludePrompt,
+    legalBenchErrorPackFrom,
     outDir: String(args['outDir'] ?? 'eval-output'),
     methods,
     model: String(args['model'] ?? process.env['OPENAI_MODEL'] ?? 'gpt-4.1-mini'),
@@ -633,6 +681,30 @@ async function main(): Promise<void> {
   const apiKey = process.env['OPENAI_API_KEY'];
 
   if (args.dataset.toLowerCase() === 'legalbench') {
+    const errorPackFrom =
+      args.legalBenchErrorPackFrom ?? resolve(args.outDir, 'legalbench-latest.json');
+
+    if (args.legalBenchErrorPackOnly) {
+      const run = JSON.parse(readFileSync(errorPackFrom, 'utf-8')) as LegalBenchEvalRun;
+      const runRootDir = String(run.datasetPath ?? args.legalBenchRootDir);
+      const runSplit = String(run.split ?? args.legalBenchSplit);
+      const examples = loadLegalBenchExamples({
+        rootDir: runRootDir,
+        split: runSplit,
+      });
+      mkdirSync(args.outDir, { recursive: true });
+      const outPath = resolve(args.outDir, 'legalbench-error-pack.md');
+      writeLegalBenchErrorPack(outPath, run, examples, {
+        topN: args.legalBenchErrorPackTopN,
+        seed: args.legalBenchErrorPackSeed,
+        includePrompt: args.legalBenchErrorPackIncludePrompt,
+        sourcePath: errorPackFrom,
+      });
+      // eslint-disable-next-line no-console
+      console.log(`Wrote ${outPath}`);
+      return;
+    }
+
     const examples = loadLegalBenchExamples({
       rootDir: args.legalBenchRootDir,
       split: args.legalBenchSplit,
@@ -685,6 +757,8 @@ async function main(): Promise<void> {
         ? { resumeFrom: resolve(args.outDir, 'legalbench-partial.json') }
         : {}),
       promptMode: args.legalBenchPromptMode,
+      normalizeOutputs: args.legalBenchNormalizeOutputs,
+      concurrency: args.legalBenchConcurrency,
     });
 
     mkdirSync(args.outDir, { recursive: true });
@@ -694,6 +768,17 @@ async function main(): Promise<void> {
       md,
       'utf-8'
     );
+    if (args.legalBenchWritePredictions) {
+      writeLegalBenchPredictions(resolve(args.outDir, 'predictions.jsonl'), run);
+    }
+    if (args.legalBenchErrorPack) {
+      writeLegalBenchErrorPack(resolve(args.outDir, 'legalbench-error-pack.md'), run, examples, {
+        topN: args.legalBenchErrorPackTopN,
+        seed: args.legalBenchErrorPackSeed,
+        includePrompt: args.legalBenchErrorPackIncludePrompt,
+        sourcePath: resolve(args.outDir, 'legalbench-latest.json'),
+      });
+    }
     // eslint-disable-next-line no-console
     console.log(`Wrote ${resolve(args.outDir, 'legalbench-latest.json')}`);
     return;

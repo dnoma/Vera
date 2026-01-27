@@ -7,6 +7,8 @@ export function legalBenchMarkdownReport(run: LegalBenchEvalRun): string {
   lines.push(`- Dataset: \`${run.datasetPath}\``);
   lines.push(`- Split: \`${run.split}\``);
   lines.push(`- Prompt mode: \`${run.promptMode}\``);
+  lines.push(`- Normalize outputs: \`${run.normalizeOutputs}\``);
+  lines.push(`- Concurrency: \`${run.concurrency}\``);
   lines.push(`- Model: \`${run.openai.model}\` (temperature=${run.openai.temperature})`);
   lines.push(`- Examples: ${run.overall.predicted}/${run.overall.total}`);
   lines.push(

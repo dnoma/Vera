@@ -221,8 +221,11 @@ OPENAI_API_KEY=... node dist/eval/run.js \
   --temperature 0 \
   --progressEvery 50 \
   --checkpointEvery 200 \
-  --promptMode few-shot
+  --promptMode few-shot \
+  --predictionsJsonl
 ```
+
+Add `--normalizeOutputs true` to enable task-specific output normalizers, or `--concurrency N` to run N requests at a time.
 
 **Baselines / controls**
 
@@ -239,7 +242,8 @@ OPENAI_API_KEY=... node dist/eval/run.js \
   --temperature 0 \
   --progressEvery 50 \
   --checkpointEvery 200 \
-  --promptMode one-shot-rag
+  --promptMode one-shot-rag \
+  --predictionsJsonl
 ```
 
 **Resume long runs**
@@ -262,7 +266,7 @@ OPENAI_API_KEY=... node dist/eval/run.js \
 
 **Compare Vera vs baseline (win-rate + deltas)**
 
-After you convert each run to JSONL (see `docs/legalbench-results.md`), append a comparison table:
+Use the emitted predictions JSONL (default: `eval-output/predictions.jsonl`) to append a comparison table:
 
 ```bash
 data/legalbench/.venv/bin/python scripts/legalbench-eval.py \
@@ -270,6 +274,30 @@ data/legalbench/.venv/bin/python scripts/legalbench-eval.py \
   --compare baseline.jsonl \
   --report docs/legalbench-results.md \
   --run-name "vera vs one-shot-rag"
+```
+
+**Error pack export (top-N disagreements per task)**
+
+```bash
+OPENAI_API_KEY=... node dist/eval/run.js \
+  --dataset legalbench \
+  --legalBenchRootDir data/legalbench \
+  --split test \
+  --tasks abercrombie,hearsay,overruling,ucc_v_common_law,definition_extraction,definition_classification,citation_prediction_classification,citation_prediction_open,contract_nli_confidentiality_of_agreement,contract_nli_no_licensing,sara_numeric,sara_entailment \
+  --outDir eval-output \
+  --errorPack \
+  --errorPackTopN 10 \
+  --errorPackSeed vera-legalbench
+```
+
+To generate the error pack without rerunning the model:
+
+```bash
+node dist/eval/run.js \
+  --dataset legalbench \
+  --outDir eval-output \
+  --errorPackOnly \
+  --errorPackFrom eval-output/legalbench-latest.json
 ```
 
 **Latest Tier 1 results (gpt-4.1-mini, temperature=0)**
