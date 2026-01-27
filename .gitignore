@@ -63,6 +63,7 @@ eval-output/
 
 # Local datasets (not committed)
 CUAD_v1/
+data/legalbench/
 
 # Temporary files
 tmp/
